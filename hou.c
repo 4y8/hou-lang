@@ -7,8 +7,8 @@
 
 #define TOKEN_SIZE 10
 
-int    linum;
-int    cpos;
+int linum;
+int cpos;
 
 void
 error(char *msg, int linum, int cpos, Error err_code)
@@ -41,7 +41,7 @@ error(char *msg, int linum, int cpos, Error err_code)
 }
 
 Token
-make_token(int type)
+make_token(unsigned int type)
 {
         Token t;
 
@@ -111,7 +111,7 @@ lexer(char *s)
                         --cpos;
                 } else {
                         switch (*s) {
-                        case '-': *(tokens + (++tpos)) = make_token(COL);     break;
+                        case ',': *(tokens + (++tpos)) = make_token(COL);     break;
                         case '=': *(tokens + (++tpos)) = make_token(EQUAL);   break;
                         case '(': *(tokens + (++tpos)) = make_token(LPARENT); break;
                         case ')': *(tokens + (++tpos)) = make_token(RPARENT); break;
@@ -187,8 +187,10 @@ parse_expr(Token *tokens)
                                 expt = pt;
                                 pt = (pt->next = malloc(sizeof(struct elist)));
                                 tp = b.tokens;
-                                if(tp->type != RPARENT)
+                                if (tp->type != RPARENT) {
                                         assert(tp, make_token(COL));
+                                        ++tp;
+                                }
                         }
                         expt->next = NULL;
                         free(pt);
@@ -213,6 +215,19 @@ parse_expr(Token *tokens)
                 break;
         default: break;
         }
+        return p;
+}
+
+TopParser
+parse_top_level(Token *tokens)
+{
+        TopParser p;
+
+        if (tokens->type == IDE) {
+                if ((tokens + 1)->type == LPARENT) {
+
+                }
+        } else error("Unexpected token.", tokens->linum, tokens->cpos, SYNTAX_ERROR);
         return p;
 }
 
@@ -241,6 +256,9 @@ print_expr(struct expr expr, int tab)
                 printf("function_call: %s\n", expr.fun_call.name);
                 print_elist(*expr.fun_call.args, tab + 2);
                 break;
+        case VAR:
+                printf("variable: %s\n", expr.var);
+                break;
         default: break;
         }
 }
@@ -248,7 +266,8 @@ print_expr(struct expr expr, int tab)
 int
 main(int argc, char **argv)
 {
-        Parser p = parse_expr(lexer("fib(1)"));
+
+        Parser p = parse_expr(lexer("fib(a, 2)"));
         print_expr(p.expr, 0);
         return 0;
 }
