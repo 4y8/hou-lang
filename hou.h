@@ -51,6 +51,8 @@ struct decl {
 typedef enum { TYPE_ERROR, UNEXPECTED_CHAR, SYNTAX_ERROR } Error;
 
 Parser parse_expr(Token *);
-Parser parse_til(Token *, Token);
+void assert(Token *, Token);
+void print_expr(struct expr, int);
+void print_elist(struct elist, int);
 
 #endif // __HOU_H_

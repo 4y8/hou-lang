@@ -37,6 +37,7 @@ error(char *msg, int linum, int cpos, Error err_code)
         printf("%s", err_header);
         for (int i = 0; i < 77 - header_size; i++) printf("-");
         free(err_header);
+        exit(1);
 }
 
 Token
@@ -144,6 +145,15 @@ print_token(Token t)
     }
 }
 
+void
+assert(Token *tokens, Token token)
+{
+
+        if (tokens->type != token.type)
+                error("Unexpected token", tokens->linum, tokens->cpos,
+                      SYNTAX_ERROR);
+}
+
 Parser
 parse_expr(Token *tokens)
 {
@@ -167,16 +177,26 @@ parse_expr(Token *tokens)
                 case LPARENT: {
                         struct elist args;
                         struct elist *pt;
+                        struct elist *expt;
+                        Token *tp;
                         pt = &args;
-                        ++tokens;
-                        while (tokens->type != RPARENT) {
-                                Parser b = parse_expr(tokens);
+                        tp = tokens + 2;
+                        while (tp->type != RPARENT) {
+                                Parser b = parse_expr(tp);
                                 pt->expr = b.expr;
+                                expt = pt;
                                 pt = (pt->next = malloc(sizeof(struct elist)));
+                                tp = b.tokens;
+                                if(tp->type != RPARENT)
+                                        assert(tp, make_token(COL));
                         }
-                        free(pt->next);
-                        pt->next = NULL;
+                        expt->next = NULL;
+                        free(pt);
+                        pt = NULL;
                         p.expr.type = FUN_CALL;
+                        p.tokens = tp;
+                        p.expr.fun_call.name = tokens->str;
+                        p.expr.fun_call.args = &args;
                         break;
                 }
                 default:
@@ -185,6 +205,7 @@ parse_expr(Token *tokens)
                         p.expr.var = tokens->str;
                         break;
                 }
+                break;
         case NUM:
                 p.tokens = tokens + 1;
                 p.expr.type = INT;
@@ -195,8 +216,39 @@ parse_expr(Token *tokens)
         return p;
 }
 
+void
+print_elist(struct elist elist, int tab)
+{
+        struct elist *p;
+
+        p = &elist;
+        while (p) {
+                print_expr(p->expr, tab);
+                p = p->next;
+        }
+}
+
+void
+print_expr(struct expr expr, int tab)
+{
+
+        for (int i = 0; i < tab; ++i) printf(" ");
+        switch (expr.type) {
+        case NUM:
+                printf("number: %d\n", expr.num);
+                break;
+        case FUN_CALL:
+                printf("function_call: %s\n", expr.fun_call.name);
+                print_elist(*expr.fun_call.args, tab + 2);
+                break;
+        default: break;
+        }
+}
+
 int
 main(int argc, char **argv)
 {
+        Parser p = parse_expr(lexer("fib(1)"));
+        print_expr(p.expr, 0);
         return 0;
 }
