@@ -149,6 +149,49 @@ parse_expr(Token *tokens)
 {
         Parser p;
 
+        p.expr.linum = tokens->linum;
+        p.expr.cpos  = tokens->cpos;
+        p.expr.abspos  = tokens->abspos;
+        switch (tokens->type) {
+        case IDE:
+                switch ((tokens + 1)->type) {
+                case EQUAL: {
+                        Parser b;
+                        b = parse_expr(tokens + 2);
+                        p.tokens = b.tokens;
+                        p.expr.type = DECL;
+                        p.expr.decl.name = tokens->str;
+                        p.expr.decl.body = &b.expr;
+                        break;
+                }
+                case LPARENT: {
+                        struct elist args;
+                        struct elist *pt;
+                        pt = &args;
+                        ++tokens;
+                        while (tokens->type != RPARENT) {
+                                Parser b = parse_expr(tokens);
+                                pt->expr = b.expr;
+                                pt = (pt->next = malloc(sizeof(struct elist)));
+                        }
+                        free(pt->next);
+                        pt->next = NULL;
+                        p.expr.type = FUN_CALL;
+                        break;
+                }
+                default:
+                        p.tokens = tokens + 1;
+                        p.expr.type = VAR;
+                        p.expr.var = tokens->str;
+                        break;
+                }
+        case NUM:
+                p.tokens = tokens + 1;
+                p.expr.type = INT;
+                p.expr.num = tokens->num;
+                break;
+        default: break;
+        }
         return p;
 }
 

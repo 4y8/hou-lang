@@ -21,10 +21,20 @@ struct expr {
         } decl;
         struct {
             char *name;
-            struct expr *args;
+            struct elist *args;
         } fun_call;
+        char *var;
+        int num;
     };
-    enum { IF, DECL, FUN_CALL } type;
+    enum { IF, DECL, FUN_CALL, INT, VAR } type;
+    int cpos;
+    int abspos;
+    int linum;
+};
+
+struct elist {
+    struct expr expr;
+    struct elist *next;
 };
 
 typedef struct {
@@ -39,5 +49,8 @@ struct decl {
 };
 
 typedef enum { TYPE_ERROR, UNEXPECTED_CHAR, SYNTAX_ERROR } Error;
+
+Parser parse_expr(Token *);
+Parser parse_til(Token *, Token);
 
 #endif // __HOU_H_
