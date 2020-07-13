@@ -273,7 +273,7 @@ parse_body(Token *tokens)
         loop = 1;
         bp = &body;
         while (loop) {
-                Parser p = parse_expr(tokens);
+                Parser p = parse_add(tokens);
                 bp->next = malloc(sizeof(struct elist));
                 bp->next->expr = *p.expr;
                 tokens = p.tokens;
@@ -299,29 +299,45 @@ binop(struct expr *left, struct expr *right, unsigned int op)
 }
 
 Parser
-parse_mul(Token *tokens)
+parse_op(Token *tokens, Parser (*fun)(Token *), unsigned int op0,
+          unsigned int op1, unsigned int op2, unsigned int op3)
 {
         Parser p;
         struct expr *e;
 
-        p = parse_expr(tokens);
+        p = fun(tokens);
+        tokens = p.tokens;
         e = malloc(sizeof(struct expr));
         e = p.expr;
         for (;;) {
-                if (p.tokens->type == TIMES) {
-                        p = parse_expr(tokens);
+                if (tokens->type == op0) {
+                        p = fun(++tokens);
                         tokens = p.tokens;
-                        e = binop(e, p.expr, OP_TIMES);
-                } else if (p.tokens->type == DIVISE) {
-                        p = parse_expr(tokens);
+                        e = binop(e, p.expr, op1);
+                } else if (tokens->type == op2) {
+                        p = fun(tokens);
                         tokens = p.tokens;
-                        e = binop(e, p.expr, OP_DIVISE);
+                        e = binop(e, p.expr, op3);
                 } else {
                         p.expr = e;
                         return p;
                 }
         }
+
 }
+
+Parser
+parse_mul(Token *tokens)
+{
+        return parse_op(tokens, parse_expr, TIMES, OP_TIMES, DIVISE, OP_DIVISE);
+}
+
+Parser
+parse_add(Token *tokens)
+{
+        return parse_op(tokens, parse_mul, PLUS, OP_PLUS, MINUS, OP_MINUS);
+}
+
 
 TopParser
 parse_top_level(Token *tokens)
@@ -341,8 +357,10 @@ parse_top_level(Token *tokens)
                                 assert(tp, make_token(IDE));
                                 pt->next->str = tp->str;
                                 pt = pt->next;
-                                if ((++tp)->type != RPARENT)
+                                if ((++tp)->type != RPARENT) {
                                         assert(tp, make_token(COL));
+                                        ++tp;
+                                }
                         } assert(++tp, make_token(ARR));
                         bp = parse_body(++tp);
                         p.decl.type = FUN_DECL;
@@ -426,6 +444,10 @@ print_expr(struct expr expr, int tab)
                 printf("in\n");
                 print_elist(*expr.letin.expr, tab + 2);
                 break;
+        case BINOP:
+                printf("binop:\n");
+                print_expr(*expr.binop.left, tab + 2);
+                print_expr(*expr.binop.right, tab + 2);
         default: break;
         }
 }
@@ -452,6 +474,6 @@ int
 main(int argc, char **argv)
 {
 
-        print_decl(parse_top_level(lexer("a = let a = 3 b = 6 in a; fib(a); a")).decl, 0);
+        print_decl(parse_top_level(lexer("add(a, b)->a + b")).decl, 0);
         return 0;
 }
