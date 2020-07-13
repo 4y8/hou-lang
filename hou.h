@@ -53,7 +53,7 @@ struct slist {
 };
 
 typedef struct {
-        struct expr expr;
+        struct expr *expr;
         Token *tokens;
 } Parser;
 

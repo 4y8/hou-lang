@@ -191,9 +191,10 @@ parse_expr(Token *tokens)
 {
         Parser p;
 
-        p.expr.linum = tokens->linum;
-        p.expr.cpos  = tokens->cpos;
-        p.expr.abspos  = tokens->abspos;
+        p.expr = malloc(sizeof(struct expr));
+        p.expr->linum = tokens->linum;
+        p.expr->cpos  = tokens->cpos;
+        p.expr->abspos  = tokens->abspos;
         switch (tokens->type) {
         case IDE:
                 switch ((tokens + 1)->type) {
@@ -206,30 +207,30 @@ parse_expr(Token *tokens)
                         while (tp->type != RPARENT) {
                                 Parser b = parse_expr(tp);
                                 pt->next = malloc(sizeof(struct elist));
-                                pt->next->expr = b.expr;
+                                pt->next->expr = *b.expr;
                                 pt = pt->next;
                                 tp = b.tokens;
                                 if (tp->type != RPARENT) {
                                         assert(tp, make_token(COL));
                                         ++tp;
                                 }
-                        } p.expr.type = FUN_CALL;
+                        } p.expr->type = FUN_CALL;
                         p.tokens = tp + 1;
-                        p.expr.fun_call.name = tokens->str;
-                        p.expr.fun_call.args = args.next;
+                        p.expr->fun_call.name = tokens->str;
+                        p.expr->fun_call.args = args.next;
                         break;
                 }
                 default:
                         p.tokens = tokens + 1;
-                        p.expr.type = VAR;
-                        p.expr.var = tokens->str;
+                        p.expr->type = VAR;
+                        p.expr->var = tokens->str;
                         break;
                 }
                 break;
         case NUM:
                 p.tokens = tokens + 1;
-                p.expr.type = INT;
-                p.expr.num = tokens->num;
+                p.expr->type = INT;
+                p.expr->num = tokens->num;
                 break;
         case LET: {
                 struct decllist l;
@@ -247,9 +248,9 @@ parse_expr(Token *tokens)
                 lp->next = NULL;
                 b = parse_body(tokens);
                 tokens = b.tokens;
-                p.expr.letin.decl = l.next;
-                p.expr.letin.expr = b.body;
-                p.expr.type = LETIN;
+                p.expr->letin.decl = l.next;
+                p.expr->letin.expr = b.body;
+                p.expr->type = LETIN;
                 p.tokens = tokens;
                 break;
         }
@@ -274,7 +275,7 @@ parse_body(Token *tokens)
         while (loop) {
                 Parser p = parse_expr(tokens);
                 bp->next = malloc(sizeof(struct elist));
-                bp->next->expr = p.expr;
+                bp->next->expr = *p.expr;
                 tokens = p.tokens;
                 bp = bp->next;
                 if (tokens->type == SEMICOL) ++tokens;
@@ -284,14 +285,41 @@ parse_body(Token *tokens)
         return p;
 }
 
+struct expr *
+binop(struct expr *left, struct expr *right, unsigned int op)
+{
+        struct expr *e;
+
+        e = malloc(sizeof(struct expr));
+        e->type = BINOP;
+        e->binop.op = op;
+        e->binop.left = left;
+        e->binop.right = right;
+        return e;
+}
+
 Parser
 parse_mul(Token *tokens)
 {
         Parser p;
+        struct expr *e;
 
         p = parse_expr(tokens);
+        e = malloc(sizeof(struct expr));
+        e = p.expr;
         for (;;) {
-                if ()
+                if (p.tokens->type == TIMES) {
+                        p = parse_expr(tokens);
+                        tokens = p.tokens;
+                        e = binop(e, p.expr, OP_TIMES);
+                } else if (p.tokens->type == DIVISE) {
+                        p = parse_expr(tokens);
+                        tokens = p.tokens;
+                        e = binop(e, p.expr, OP_DIVISE);
+                } else {
+                        p.expr = e;
+                        return p;
+                }
         }
 }
 
