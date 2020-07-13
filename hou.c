@@ -81,7 +81,7 @@ lexer(char *s)
         cpos   = 0;
         linum  = 1;
         tpos   = -1;
-        tokens = (Token *) malloc(TOKEN_SIZE * sizeof(Token));
+        tokens = malloc(TOKEN_SIZE * sizeof(Token));
         do {
                 if (isalpha(*s)) {
                         int   i = 1;
@@ -184,27 +184,23 @@ parse_expr(Token *tokens)
                 case LPARENT: {
                         struct elist args;
                         struct elist *pt;
-                        struct elist *expt;
                         Token *tp;
                         pt = &args;
                         tp = tokens + 2;
                         while (tp->type != RPARENT) {
                                 Parser b = parse_expr(tp);
-                                pt->expr = b.expr;
-                                expt = pt;
-                                pt = (pt->next = malloc(sizeof(struct elist)));
+                                pt->next = malloc(sizeof(struct elist));
+                                pt->next->expr = b.expr;
+                                pt = pt->next;
                                 tp = b.tokens;
                                 if (tp->type != RPARENT) {
                                         assert(tp, make_token(COL));
                                         ++tp;
                                 }
-                        }
-                        expt->next = NULL;
-                        free(pt);
-                        p.expr.type = FUN_CALL;
+                        } p.expr.type = FUN_CALL;
                         p.tokens = tp;
                         p.expr.fun_call.name = tokens->str;
-                        p.expr.fun_call.args = &args;
+                        p.expr.fun_call.args = args.next;
                         break;
                 }
                 default:
@@ -248,8 +244,7 @@ parse_top_level(Token *tokens)
                                 pt = pt->next;
                                 if ((++tp)->type != RPARENT)
                                         assert(tp, make_token(COL));
-                        }
-                        loop = 1;
+                        } loop = 1;
                         bp = &body;
                         assert(++tp, make_token(ARR));
                         ++tp;
@@ -258,7 +253,8 @@ parse_top_level(Token *tokens)
                                 bp->next = malloc(sizeof(struct elist));
                                 bp->next->expr = p.expr;
                                 tp = p.tokens;
-                                pt = pt->next;
+                                bp = bp->next;
+                                puts("ee");
                                 if (tp->type == SEMICOL) ++tp;
                                 else loop = 0;
                         } p.decl.type = FUN_DECL;
@@ -269,6 +265,13 @@ parse_top_level(Token *tokens)
                 }
         } else error("Unexpected token.", tokens->linum, tokens->cpos, SYNTAX_ERROR);
         return p;
+}
+
+void
+print_tab(int tab)
+{
+
+        for (int i = 0; i < tab; ++i) printf(" ");
 }
 
 void
@@ -284,16 +287,27 @@ print_elist(struct elist elist, int tab)
 }
 
 void
+print_slist(struct slist *slist, int tab)
+{
+
+        while (slist) {
+                print_tab(tab);
+                printf("%s\n", slist->str);
+                slist = slist->next;
+        }
+}
+
+void
 print_expr(struct expr expr, int tab)
 {
 
-        for (int i = 0; i < tab; ++i) printf(" ");
+        print_tab(tab);
         switch (expr.type) {
         case NUM:
                 printf("number: %d\n", expr.num);
                 break;
         case FUN_CALL:
-                printf("function_call: %s\n", expr.fun_call.name);
+                printf("function call: %s\n", expr.fun_call.name);
                 print_elist(*expr.fun_call.args, tab + 2);
                 break;
         case VAR:
@@ -303,12 +317,28 @@ print_expr(struct expr expr, int tab)
         }
 }
 
+void
+print_decl(struct decl decl, int tab)
+{
+
+        print_tab(tab);
+        switch (decl.type) {
+        case FUN_DECL:
+                printf("function: %s\n", decl.fun_decl.name);
+                print_slist(decl.fun_decl.args, tab + 2);
+                print_elist(*decl.fun_decl.body, tab + 2);
+                break;
+        default: break;
+        }
+}
+
+Parser p;
 int
 main(int argc, char **argv)
 {
 
-        parse_top_level(lexer("fib(a)->2"));
-        Parser p = parse_expr(lexer("fib(a, 2)"));
+        p = parse_expr(lexer("fib(a, 2)"));
+        print_decl(parse_top_level(lexer("fib(a)->2;2")).decl, 0);
         print_expr(p.expr, 0);
         return 0;
 }
