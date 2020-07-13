@@ -2,7 +2,8 @@
 #define __HOU_H_
 
 typedef struct {
-        enum { LPARENT, RPARENT, IDE, NUM, STR, EQUAL, SEMICOL, COL, END, ARR } type;
+        enum { LPARENT, RPARENT, IDE, NUM, STR, EQUAL, SEMICOL, COL,
+               END, ARR, LET, IN } type;
         union {
                 int   num;
                 char *str;
@@ -12,12 +13,17 @@ typedef struct {
         int linum;
 } Token;
 
+typedef struct {
+        unsigned int t;
+        char *s;
+} char_to_tok;
 
 struct expr {
         union {
                 struct {
                         char *name;
-                        struct expr *body;
+                        struct elist *body;
+                        struct elist *expr;
                 } decl;
                 struct {
                         char *name;
@@ -26,7 +32,7 @@ struct expr {
                 char *var;
                 int num;
         };
-        enum { IF, DECL, FUN_CALL, INT, VAR } type;
+        enum { IF, FUN_CALL, INT, VAR, LETIN } type;
         int cpos;
         int abspos;
         int linum;

@@ -5,10 +5,22 @@
 #include <stdio.h>
 #include "hou.h"
 
-#define TOKEN_SIZE 10
+#define TOKEN_SIZE 100
+#define NKEYWORD   2
 
 int linum;
 int cpos;
+char_to_tok keywords[] = {{LET, "let"}, {IN, "in"}};
+
+int
+char_to_token(char *s)
+{
+
+        for (unsigned i = 0; i < NKEYWORD; ++i)
+                if (!strcmp(keywords[i].s, s))
+                        return keywords[i].t;
+        return -1;
+}
 
 void
 error(char *msg, int linum, int cpos, Error err_code)
@@ -93,7 +105,10 @@ lexer(char *s)
                         }
                         str  = malloc((i + 1) * sizeof(char));
                         strncpy(str, s - i, i);
-                        *(tokens + (++tpos)) = make_token_str(str);
+                        i = char_to_token(str);
+                        if (i == -1)
+                                *(tokens + (++tpos)) = make_token_str(str);
+                        else *(tokens + (++tpos)) = make_token(i);
                         --s;
                         --cpos;
                 } else if (isdigit(*s)) {
@@ -139,6 +154,8 @@ void
 print_token(Token t)
 {
         switch(t.type) {
+        case IN:      printf("in");                    break;
+        case LET:     printf("let");                   break;
         case NUM:     printf("number: %d", t.num);     break;
         case IDE:     printf("identifier: %s", t.str); break;
         case STR:     printf("string: %s", t.str);     break;
@@ -172,15 +189,6 @@ parse_expr(Token *tokens)
         switch (tokens->type) {
         case IDE:
                 switch ((tokens + 1)->type) {
-                case EQUAL: {
-                        Parser b;
-                        b = parse_expr(tokens + 2);
-                        p.tokens = b.tokens;
-                        p.expr.type = DECL;
-                        p.expr.decl.name = tokens->str;
-                        p.expr.decl.body = &b.expr;
-                        break;
-                }
                 case LPARENT: {
                         struct elist args;
                         struct elist *pt;
@@ -198,7 +206,7 @@ parse_expr(Token *tokens)
                                         ++tp;
                                 }
                         } p.expr.type = FUN_CALL;
-                        p.tokens = tp;
+                        p.tokens = tp + 1;
                         p.expr.fun_call.name = tokens->str;
                         p.expr.fun_call.args = args.next;
                         break;
@@ -229,10 +237,8 @@ parse_top_level(Token *tokens)
                 if ((tokens + 1)->type == LPARENT) {
                         struct slist args;
                         struct slist *pt;
-                        struct slist *expt;
                         struct elist body;
                         struct elist *bp;
-                        struct elist *exbp;
                         unsigned int loop;
                         Token *tp;
                         pt = &args;
@@ -254,7 +260,6 @@ parse_top_level(Token *tokens)
                                 bp->next->expr = p.expr;
                                 tp = p.tokens;
                                 bp = bp->next;
-                                puts("ee");
                                 if (tp->type == SEMICOL) ++tp;
                                 else loop = 0;
                         } p.decl.type = FUN_DECL;
@@ -332,13 +337,12 @@ print_decl(struct decl decl, int tab)
         }
 }
 
-Parser p;
 int
 main(int argc, char **argv)
 {
+        Parser p;
 
         p = parse_expr(lexer("fib(a, 2)"));
-        print_decl(parse_top_level(lexer("fib(a)->2;2")).decl, 0);
-        print_expr(p.expr, 0);
+        print_decl(parse_top_level(lexer("fib(a)->fib(2); 2")).decl, 0);
         return 0;
 }
