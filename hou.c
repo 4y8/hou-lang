@@ -127,7 +127,10 @@ lexer(char *s)
                 } else {
                         switch (*s) {
                         case ',': *(tokens + (++tpos)) = make_token(COL);     break;
+                        case '+': *(tokens + (++tpos)) = make_token(PLUS);    break;
+                        case '*': *(tokens + (++tpos)) = make_token(TIMES);   break;
                         case '=': *(tokens + (++tpos)) = make_token(EQUAL);   break;
+                        case '/': *(tokens + (++tpos)) = make_token(DIVISE);  break;
                         case '(': *(tokens + (++tpos)) = make_token(LPARENT); break;
                         case ')': *(tokens + (++tpos)) = make_token(RPARENT); break;
                         case ';': *(tokens + (++tpos)) = make_token(SEMICOL); break;
@@ -137,8 +140,9 @@ lexer(char *s)
                                 if (*(++s) == '>') {
                                         *(tokens + (++tpos)) = make_token(ARR);
                                         ++cpos;
-                                        break;
-                                } else /* FALLTHROUGH */;
+                                } else {
+                                        *(tokens + (++tpos)) = make_token(MINUS);
+                                } break;
                         default : error("Unxecpected charachter", linum, cpos,
                                         UNEXPECTED_CHAR);
                         }
@@ -161,8 +165,12 @@ print_token(Token t)
         case STR:     printf("string: %s", t.str);     break;
         case COL:     printf(",");                     break;
         case ARR:     printf("->");                    break;
+        case PLUS:    printf("+");                     break;
         case EQUAL:   printf("=");                     break;
+        case MINUS:   printf("-");                     break;
+        case TIMES:   printf("*");                     break;
         case LPARENT: printf("(");                     break;
+        case DIVISE:  printf("/");                     break;
         case RPARENT: printf(")");                     break;
         case SEMICOL: printf(";");                     break;
         case END:                                      break;
@@ -274,6 +282,17 @@ parse_body(Token *tokens)
         } p.tokens = tokens;
         p.body = body.next;
         return p;
+}
+
+Parser
+parse_mul(Token *tokens)
+{
+        Parser p;
+
+        p = parse_expr(tokens);
+        for (;;) {
+                if ()
+        }
 }
 
 TopParser
@@ -405,6 +424,6 @@ int
 main(int argc, char **argv)
 {
 
-        print_decl(parse_top_level(lexer("a = let a = 3 in a")).decl, 0);
+        print_decl(parse_top_level(lexer("a = let a = 3 b = 6 in a; fib(a); a")).decl, 0);
         return 0;
 }

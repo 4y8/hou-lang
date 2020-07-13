@@ -3,7 +3,7 @@
 
 typedef struct {
         enum { LPARENT, RPARENT, IDE, NUM, STR, EQUAL, SEMICOL, COL,
-               END, ARR, LET, IN } type;
+               END, ARR, LET, IN, PLUS, MINUS, TIMES, DIVISE } type;
         union {
                 int   num;
                 char *str;
@@ -28,10 +28,15 @@ struct expr {
                         char *name;
                         struct elist *args;
                 } fun_call;
+                struct {
+                        struct expr *left;
+                        struct expr *right;
+                        enum { OP_PLUS, OP_MINUS, OP_TIMES, OP_DIVISE } op;
+                } binop;
                 char *var;
                 int num;
         };
-        enum { IF, FUN_CALL, INT, VAR, LETIN } type;
+        enum { FUN_CALL, INT, VAR, LETIN, BINOP } type;
         int cpos;
         int abspos;
         int linum;
@@ -90,6 +95,8 @@ Token make_token_num(int);
 Token *lexer(char *);
 void print_token(Token);
 Parser parse_expr(Token *);
+Parser parse_add(Token *);
+Parser parse_mul(Token *);
 void assert(Token *, Token);
 void print_expr(struct expr, int);
 void print_elist(struct elist, int);
