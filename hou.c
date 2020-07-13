@@ -118,6 +118,12 @@ lexer(char *s)
                         case ';': *(tokens + (++tpos)) = make_token(SEMICOL); break;
                         case ' ': case '\t': break;
                         case '\n': ++linum; cpos = 0; break;
+                        case '-':
+                                if (*(++s) == '>') {
+                                        *(tokens + (++tpos)) = make_token(ARR);
+                                        ++cpos;
+                                        break;
+                                } else /* FALLTHROUGH */;
                         default : error("Unxecpected charachter", linum, cpos,
                                         UNEXPECTED_CHAR);
                         }
@@ -137,6 +143,7 @@ print_token(Token t)
         case IDE:     printf("identifier: %s", t.str); break;
         case STR:     printf("string: %s", t.str);     break;
         case COL:     printf(",");                     break;
+        case ARR:     printf("->");                    break;
         case EQUAL:   printf("=");                     break;
         case LPARENT: printf("(");                     break;
         case RPARENT: printf(")");                     break;
@@ -152,7 +159,7 @@ assert(Token *tokens, Token token)
         if (tokens->type != token.type)
                 error("Unexpected token", tokens->linum, tokens->cpos,
                       SYNTAX_ERROR);
-}
+}                   
 
 Parser
 parse_expr(Token *tokens)
@@ -194,7 +201,6 @@ parse_expr(Token *tokens)
                         }
                         expt->next = NULL;
                         free(pt);
-                        pt = NULL;
                         p.expr.type = FUN_CALL;
                         p.tokens = tp;
                         p.expr.fun_call.name = tokens->str;
@@ -225,7 +231,41 @@ parse_top_level(Token *tokens)
 
         if (tokens->type == IDE) {
                 if ((tokens + 1)->type == LPARENT) {
-
+                        struct slist args;
+                        struct slist *pt;
+                        struct slist *expt;
+                        struct elist body;
+                        struct elist *bp;
+                        struct elist *exbp;
+                        unsigned int loop;
+                        Token *tp;
+                        pt = &args;
+                        tp = tokens + 2;
+                        while (tp->type != RPARENT) {
+                                pt->next = malloc(sizeof(struct slist));
+                                assert(tp, make_token(IDE));
+                                pt->next->str = tp->str;
+                                pt = pt->next;
+                                if ((++tp)->type != RPARENT)
+                                        assert(tp, make_token(COL));
+                        }
+                        loop = 1;
+                        bp = &body;
+                        assert(++tp, make_token(ARR));
+                        ++tp;
+                        while (loop) {
+                                Parser p = parse_expr(tp);
+                                bp->next = malloc(sizeof(struct elist));
+                                bp->next->expr = p.expr;
+                                tp = p.tokens;
+                                pt = pt->next;
+                                if (tp->type == SEMICOL) ++tp;
+                                else loop = 0;
+                        } p.decl.type = FUN_DECL;
+                        p.tokens = tp;
+                        p.decl.fun_decl.name = tokens->str;
+                        p.decl.fun_decl.args = args.next;
+                        p.decl.fun_decl.body = body.next;
                 }
         } else error("Unexpected token.", tokens->linum, tokens->cpos, SYNTAX_ERROR);
         return p;
@@ -267,6 +307,7 @@ int
 main(int argc, char **argv)
 {
 
+        parse_top_level(lexer("fib(a)->2"));
         Parser p = parse_expr(lexer("fib(a, 2)"));
         print_expr(p.expr, 0);
         return 0;

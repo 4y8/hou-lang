@@ -2,7 +2,7 @@
 #define __HOU_H_
 
 typedef struct {
-        enum { LPARENT, RPARENT, IDE, NUM, STR, EQUAL, SEMICOL, COL, END } type;
+        enum { LPARENT, RPARENT, IDE, NUM, STR, EQUAL, SEMICOL, COL, END, ARR } type;
         union {
                 int   num;
                 char *str;
@@ -39,7 +39,7 @@ struct elist {
 
 struct slist {
         char *str;
-        struct elist *next;
+        struct slist *next;
 };
 
 typedef struct {
@@ -51,8 +51,8 @@ struct decl {
         union {
                 struct {
                         char *name;
-                        struct slist args;
-                        struct elist body;
+                        struct slist *args;
+                        struct elist *body;
                 } fun_decl;
         };
         enum { FUN_DECL, VAR_DECL } type;
