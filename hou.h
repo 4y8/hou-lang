@@ -21,7 +21,7 @@ typedef struct {
 struct expr {
         union {
                 struct {
-                        struct decl *decl;
+                        struct decllist *decl;
                         struct elist *expr;
                 } letin;
                 struct {
@@ -72,6 +72,11 @@ struct decl {
         enum { FUN_DECL, VAR_DECL } type;
 };
 
+struct decllist {
+        struct decl decl;
+        struct decllist *next;
+};
+
 typedef struct {
         struct decl decl;
         Token *tokens;
@@ -90,6 +95,7 @@ void print_expr(struct expr, int);
 void print_elist(struct elist, int);
 void error(char *, int, int, Error);
 void print_decl(struct decl, int);
+void print_decllist(struct decllist *, int);
 TopParser parse_top_level(Token *);
 BodyParser parse_body(Token *);
 

@@ -223,7 +223,28 @@ parse_expr(Token *tokens)
                 p.expr.type = INT;
                 p.expr.num = tokens->num;
                 break;
-        case LET:
+        case LET: {
+                struct decllist l;
+                struct decllist *lp;
+                BodyParser b;
+                lp = &l;
+                ++tokens;
+                while (tokens->type != IN) {
+                        TopParser b = parse_top_level(tokens);
+                        lp->next = malloc(sizeof(struct decllist));
+                        lp->next->decl = b.decl;
+                        lp = lp->next;
+                        tokens = b.tokens;
+                } ++tokens;
+                lp->next = NULL;
+                b = parse_body(tokens);
+                tokens = b.tokens;
+                p.expr.letin.decl = l.next;
+                p.expr.letin.expr = b.body;
+                p.expr.type = LETIN;
+                p.tokens = tokens;
+                break;
+        }
         default:
                 error("Unexpected token.", tokens->linum, tokens->cpos,
                       SYNTAX_ERROR);
@@ -288,6 +309,7 @@ parse_top_level(Token *tokens)
                         p.decl.type = VAR_DECL;
                         p.decl.var_decl.name = tokens->str;
                         p.decl.var_decl.body = bp.body;
+                        p.tokens = bp.tokens;
                 } else error("Unexpected token.", tokens->linum, tokens->cpos,
                              SYNTAX_ERROR);
         } else error("Unexpected token.", tokens->linum, tokens->cpos, SYNTAX_ERROR);
@@ -325,6 +347,16 @@ print_slist(struct slist *slist, int tab)
 }
 
 void
+print_decllist(struct decllist *decllist, int tab)
+{
+
+        while (decllist) {
+                print_decl(decllist->decl, tab);
+                decllist = decllist->next;
+        }
+}
+
+void
 print_expr(struct expr expr, int tab)
 {
 
@@ -342,7 +374,7 @@ print_expr(struct expr expr, int tab)
                 break;
         case LETIN:
                 printf("let\n");
-                print_decl(*expr.letin.decl, tab + 2);
+                print_decllist(expr.letin.decl, tab + 2);
                 print_tab(tab);
                 printf("in\n");
                 print_elist(*expr.letin.expr, tab + 2);
@@ -362,7 +394,10 @@ print_decl(struct decl decl, int tab)
                 print_slist(decl.fun_decl.args, tab + 2);
                 print_elist(*decl.fun_decl.body, tab + 2);
                 break;
-        default: break;
+        case VAR_DECL:
+                printf("variable: %s\n", decl.var_decl.name);
+                print_elist(*decl.var_decl.body, tab + 2);
+                break;
         }
 }
 
@@ -370,6 +405,6 @@ int
 main(int argc, char **argv)
 {
 
-        print_decl(parse_top_level(lexer("fib(a)->fib(2); 2")).decl, 0);
+        print_decl(parse_top_level(lexer("a = let a = 3 in a")).decl, 0);
         return 0;
 }
