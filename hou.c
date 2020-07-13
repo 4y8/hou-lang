@@ -223,8 +223,35 @@ parse_expr(Token *tokens)
                 p.expr.type = INT;
                 p.expr.num = tokens->num;
                 break;
-        default: break;
+        case LET:
+        default:
+                error("Unexpected token.", tokens->linum, tokens->cpos,
+                      SYNTAX_ERROR);
+                break;
         }
+        return p;
+}
+
+BodyParser
+parse_body(Token *tokens)
+{
+        struct elist body;
+        struct elist *bp;
+        unsigned int loop;
+        BodyParser p;
+
+        loop = 1;
+        bp = &body;
+        while (loop) {
+                Parser p = parse_expr(tokens);
+                bp->next = malloc(sizeof(struct elist));
+                bp->next->expr = p.expr;
+                tokens = p.tokens;
+                bp = bp->next;
+                if (tokens->type == SEMICOL) ++tokens;
+                else loop = 0;
+        } p.tokens = tokens;
+        p.body = body.next;
         return p;
 }
 
@@ -237,9 +264,7 @@ parse_top_level(Token *tokens)
                 if ((tokens + 1)->type == LPARENT) {
                         struct slist args;
                         struct slist *pt;
-                        struct elist body;
-                        struct elist *bp;
-                        unsigned int loop;
+                        BodyParser bp;
                         Token *tp;
                         pt = &args;
                         tp = tokens + 2;
@@ -250,24 +275,21 @@ parse_top_level(Token *tokens)
                                 pt = pt->next;
                                 if ((++tp)->type != RPARENT)
                                         assert(tp, make_token(COL));
-                        } loop = 1;
-                        bp = &body;
-                        assert(++tp, make_token(ARR));
-                        ++tp;
-                        while (loop) {
-                                Parser p = parse_expr(tp);
-                                bp->next = malloc(sizeof(struct elist));
-                                bp->next->expr = p.expr;
-                                tp = p.tokens;
-                                bp = bp->next;
-                                if (tp->type == SEMICOL) ++tp;
-                                else loop = 0;
-                        } p.decl.type = FUN_DECL;
-                        p.tokens = tp;
+                        } assert(++tp, make_token(ARR));
+                        bp = parse_body(++tp);
+                        p.decl.type = FUN_DECL;
+                        p.tokens = bp.tokens;
                         p.decl.fun_decl.name = tokens->str;
                         p.decl.fun_decl.args = args.next;
-                        p.decl.fun_decl.body = body.next;
-                }
+                        p.decl.fun_decl.body = bp.body;
+                } else if ((tokens + 1)->type == EQUAL) {
+                        BodyParser bp;
+                        bp = parse_body(tokens + 2);
+                        p.decl.type = VAR_DECL;
+                        p.decl.var_decl.name = tokens->str;
+                        p.decl.var_decl.body = bp.body;
+                } else error("Unexpected token.", tokens->linum, tokens->cpos,
+                             SYNTAX_ERROR);
         } else error("Unexpected token.", tokens->linum, tokens->cpos, SYNTAX_ERROR);
         return p;
 }
@@ -308,7 +330,7 @@ print_expr(struct expr expr, int tab)
 
         print_tab(tab);
         switch (expr.type) {
-        case NUM:
+        case INT:
                 printf("number: %d\n", expr.num);
                 break;
         case FUN_CALL:
@@ -317,6 +339,13 @@ print_expr(struct expr expr, int tab)
                 break;
         case VAR:
                 printf("variable: %s\n", expr.var);
+                break;
+        case LETIN:
+                printf("let\n");
+                print_decl(*expr.letin.decl, tab + 2);
+                print_tab(tab);
+                printf("in\n");
+                print_elist(*expr.letin.expr, tab + 2);
                 break;
         default: break;
         }
@@ -340,9 +369,7 @@ print_decl(struct decl decl, int tab)
 int
 main(int argc, char **argv)
 {
-        Parser p;
 
-        p = parse_expr(lexer("fib(a, 2)"));
         print_decl(parse_top_level(lexer("fib(a)->fib(2); 2")).decl, 0);
         return 0;
 }

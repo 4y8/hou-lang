@@ -21,10 +21,9 @@ typedef struct {
 struct expr {
         union {
                 struct {
-                        char *name;
-                        struct elist *body;
+                        struct decl *decl;
                         struct elist *expr;
-                } decl;
+                } letin;
                 struct {
                         char *name;
                         struct elist *args;
@@ -53,6 +52,11 @@ typedef struct {
         Token *tokens;
 } Parser;
 
+typedef struct {
+        struct elist *body;
+        Token *tokens;
+} BodyParser;
+
 struct decl {
         union {
                 struct {
@@ -60,6 +64,10 @@ struct decl {
                         struct slist *args;
                         struct elist *body;
                 } fun_decl;
+                struct {
+                        char *name;
+                        struct elist *body;
+                } var_decl;
         };
         enum { FUN_DECL, VAR_DECL } type;
 };
@@ -81,6 +89,8 @@ void assert(Token *, Token);
 void print_expr(struct expr, int);
 void print_elist(struct elist, int);
 void error(char *, int, int, Error);
-
+void print_decl(struct decl, int);
+TopParser parse_top_level(Token *);
+BodyParser parse_body(Token *);
 
 #endif // __HOU_H_
