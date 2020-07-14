@@ -373,7 +373,7 @@ ftv(Type t)
                 while (p) p=p->next;
                 p = ftv(*t.fun.right);
                 break;
-        case TLIT: return NULL;
+        case TLIT: l = NULL; break;
         case TVAR:
                 l       = malloc(sizeof(struct ilist));
                 l->next = NULL;
@@ -382,32 +382,55 @@ ftv(Type t)
         } return l;
 }
 
-struct ilist*
+int
+occurs(struct ilist *l, int i)
+{
+
+        while(l) {
+                if (l->i == i) return 1;
+                l = l->next;
+        } return 0;
+}
+
+struct ilist *
 ftv_sch(Scheme sch)
 {
         struct ilist *l;
-        unsigned int *i;
-        unsigned int *ip;
         struct ilist *p;
-        unsigned int len;
 
         p = sch.bind;
         while (p) {
-                p = p->next;
-                ++len;
+                if (occurs(sch.bind, p->i)) {
+                        p->i = p->next->i;
+                        p->next = p->next->next;
+                        continue;
+                } p = p->next;
+        } return l;
+}
+
+Subst *
+bind(unsigned int var, Type t)
+{
+        Subst *s;
+
+        if (t.type == TVAR && t.var == var) s = NULL;
+        else if (occurs(ftv(t), var)) error("Occurs error happend", 0, 0,
+                                             TYPE_ERROR);
+        else {
+                s = malloc(sizeof(Subst));
+                s->t = t;
+                s->next = NULL;
+                s->nvar = var;
         }
-        p = sch.bind;
-        ip = i = malloc(len * sizeof(unsigned int));
-        --i;
-        while (p) {
-                *(++i) = p->i;
-                p = p->next;
-        } p = l = ftv(sch.type);
-        while (p) {
-                p = p->next;
-        }
-        free(i);
-        return l;
+        return s;
+}
+
+Subst *
+unify(Type t1, Type t2)
+{
+        Subst *s;
+
+        return s;
 }
 
 void

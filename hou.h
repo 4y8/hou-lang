@@ -120,7 +120,7 @@ typedef struct {
 
 typedef struct {
         Type type;
-        Subst subst;
+        Subst *subst;
 } TypeReturn;
 
 typedef enum { TYPE_ERROR, UNEXPECTED_CHAR, SYNTAX_ERROR } Error;
