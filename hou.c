@@ -367,7 +367,12 @@ ftv(Type t)
         struct ilist *l;
 
         switch (t.type) {
-        case TFUN: break;
+        case TFUN:
+                l = ftv(*t.fun.left);
+                struct ilist *p = l;
+                while (p) p=p->next;
+                p = ftv(*t.fun.right);
+                break;
         case TLIT: return NULL;
         case TVAR:
                 l       = malloc(sizeof(struct ilist));
@@ -375,6 +380,34 @@ ftv(Type t)
                 l->i    = t.var;
                 break;
         } return l;
+}
+
+struct ilist*
+ftv_sch(Scheme sch)
+{
+        struct ilist *l;
+        unsigned int *i;
+        unsigned int *ip;
+        struct ilist *p;
+        unsigned int len;
+
+        p = sch.bind;
+        while (p) {
+                p = p->next;
+                ++len;
+        }
+        p = sch.bind;
+        ip = i = malloc(len * sizeof(unsigned int));
+        --i;
+        while (p) {
+                *(++i) = p->i;
+                p = p->next;
+        } p = l = ftv(sch.type);
+        while (p) {
+                p = p->next;
+        }
+        free(i);
+        return l;
 }
 
 void

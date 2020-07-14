@@ -109,7 +109,7 @@ typedef struct subst {
 } Subst;
 
 struct ilist {
-        int i;
+        unsigned int i;
         struct ilist *next;
 };
 
