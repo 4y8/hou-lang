@@ -33,7 +33,10 @@ struct expr {
                         struct expr *right;
                         enum { OP_PLUS, OP_MINUS, OP_TIMES, OP_DIVISE } op;
                 } binop;
-                char *var;
+                union {
+                        char *var;
+                        int deb_var;
+                };
                 int num;
         };
         enum { FUN_CALL, INT, VAR, LETIN, BINOP } type;
@@ -87,6 +90,28 @@ typedef struct {
         Token *tokens;
 } TopParser;
 
+union type {
+        char *lit;
+        unsigned int var;
+        struct {
+                union type *left;
+                union type *right;
+        } fun;
+};
+
+typedef union type Type;
+
+typedef struct subst {
+        unsigned int nvar;
+        Type t;
+        struct subst *next;
+} Subst;
+
+typedef struct {
+        Type type;
+        Subst subst;
+} TypeReturn;
+
 typedef enum { TYPE_ERROR, UNEXPECTED_CHAR, SYNTAX_ERROR } Error;
 
 Token make_token(unsigned int);
@@ -105,5 +130,6 @@ void print_decl(struct decl, int);
 void print_decllist(struct decllist *, int);
 TopParser parse_top_level(Token *);
 BodyParser parse_body(Token *);
+
 
 #endif // __HOU_H_

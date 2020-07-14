@@ -421,6 +421,19 @@ print_decllist(struct decllist *decllist, int tab)
         }
 }
 
+char
+op_to_char(unsigned int op)
+{
+
+        switch (op) {
+        case OP_PLUS:   return '+';
+        case OP_MINUS:  return '-';
+        case OP_TIMES:  return '*';
+        case OP_DIVISE: return '/';
+        }
+        return ' ';
+}
+
 void
 print_expr(struct expr expr, int tab)
 {
@@ -445,7 +458,7 @@ print_expr(struct expr expr, int tab)
                 print_elist(*expr.letin.expr, tab + 2);
                 break;
         case BINOP:
-                printf("binop:\n");
+                printf("binop: %c\n", op_to_char(expr.binop.op));
                 print_expr(*expr.binop.left, tab + 2);
                 print_expr(*expr.binop.right, tab + 2);
         default: break;
@@ -474,6 +487,6 @@ int
 main(int argc, char **argv)
 {
 
-        print_decl(parse_top_level(lexer("add(a, b)->a + b")).decl, 0);
+        print_decl(parse_top_level(lexer("add(a, b)->let fib(a) -> 2 in a + b")).decl, 0);
         return 0;
 }
