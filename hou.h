@@ -97,7 +97,7 @@ union type {
                 union type *left;
                 union type *right;
         } fun;
-        enum { TLIT, TVAR, TFUN } type;
+        enum { TLIT, TVAR, TFUN, TINT } type;
 };
 
 typedef union type Type;
@@ -122,6 +122,12 @@ typedef struct {
         Type *type;
         Subst *subst;
 } TypeReturn;
+
+typedef struct ctx_elem {
+        char *name;
+        Scheme sch;
+        struct ctx_elem *next;
+} Context;
 
 typedef enum { TYPE_ERROR, UNEXPECTED_CHAR, SYNTAX_ERROR } Error;
 

@@ -8,6 +8,11 @@
 #define TOKEN_SIZE 100
 #define NKEYWORD   2
 
+#define length(e, var) while(e) {               \
+                ++(*var);                       \
+                e = e->next;                    \
+        }
+
 unsigned int linum;
 unsigned int cpos;
 unsigned int nvar = 0;
@@ -373,6 +378,7 @@ ftv(Type *t)
                 while (p) p=p->next;
                 p = ftv(t->fun.right);
                 break;
+        case TINT:
         case TLIT: l = NULL; break;
         case TVAR:
                 l       = malloc(sizeof(struct ilist));
@@ -438,6 +444,26 @@ tfun(Type *left, Type *right)
 }
 
 Type *
+tint()
+{
+        Type *t;
+
+        t = malloc(sizeof(Type));
+        t->type = TINT;
+        return t;
+}
+
+Type *
+tvar (unsigned int var)
+{
+        Type *t;
+
+        t = malloc(sizeof(Type));
+        t->var = var;
+        return t;
+}
+
+Type *
 app_subst(Type *t, Subst *s)
 {
 
@@ -473,11 +499,59 @@ unify(Type *t1, Type *t2)
         Subst *s;
         if (t1->type == TLIT && t2->type == TLIT && !strcmp(t2->lit, t1->lit))
                 s = NULL;
+        else if (t1->type == TINT && t2->type == TINT) s = NULL;
         else if (t1->type == TVAR) s = bind(t1->var, t2);
         else if (t2->type == TVAR) s = bind(t2->var, t1);
-        else if (t1->type == TFUN && t2->type == TFUN) ;
+        else if (t1->type == TFUN && t2->type == TFUN)
+                compose_subst(unify(t1->fun.right, t2->fun.right),
+                              unify(t1->fun.left, t2->fun.left));
 
         return s;
+}
+
+Scheme
+find_ctx(char *name, Context *ctx)
+{
+
+        while(ctx) {
+                if (!strcmp(name, ctx->name))
+                        return ctx->sch;
+                ctx = ctx->next;
+        } error("Unknown variable", 0, 0, TYPE_ERROR);
+        exit(1);
+}
+
+Type *
+inst(Scheme sch)
+{
+        Type *t;
+        struct ilist *p;
+
+        p = sch.bind;
+        t = malloc(sizeof(Type));
+        *t = *sch.type;
+        while (p) {
+                Subst s;
+                s.next = NULL;
+                s.nvar = p->i;
+                s.t = tvar(++nvar);
+                p = p->next;
+                t = app_subst(t, &s);
+        } return t;
+}
+
+TypeReturn
+infer(struct expr expr, Context ctx)
+{
+        TypeReturn tp;
+
+        switch (expr.type) {
+        case INT:
+                tp.subst = NULL;
+                tp.type = tint();
+                break;
+        }
+        return tp;
 }
 
 void
