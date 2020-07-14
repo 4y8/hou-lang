@@ -104,7 +104,7 @@ typedef union type Type;
 
 typedef struct subst {
         unsigned int nvar;
-        Type t;
+        Type *t;
         struct subst *next;
 } Subst;
 
@@ -115,11 +115,11 @@ struct ilist {
 
 typedef struct {
         struct ilist *bind;
-        Type type;
+        Type *type;
 } Scheme;
 
 typedef struct {
-        Type type;
+        Type *type;
         Subst *subst;
 } TypeReturn;
 
@@ -138,8 +138,8 @@ BodyParser parse_body(Token *);
 
 Type *tfun(Type *, Type *);
 
-Subst *unify(Type, Type);
-Subst *bind(unsigned int, Type);
+Subst *unify(Type *, Type *);
+Subst *bind(unsigned int, Type *);
 
 void print_token(Token);
 void assert(Token *, Token);

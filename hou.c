@@ -362,22 +362,22 @@ parse_top_level(Token *tokens)
 }
 
 struct ilist*
-ftv(Type t)
+ftv(Type *t)
 {
         struct ilist *l;
 
-        switch (t.type) {
+        switch (t->type) {
         case TFUN:
-                l = ftv(*t.fun.left);
+                l = ftv(t->fun.left);
                 struct ilist *p = l;
                 while (p) p=p->next;
-                p = ftv(*t.fun.right);
+                p = ftv(t->fun.right);
                 break;
         case TLIT: l = NULL; break;
         case TVAR:
                 l       = malloc(sizeof(struct ilist));
                 l->next = NULL;
-                l->i    = t.var;
+                l->i    = t->var;
                 break;
         } return l;
 }
@@ -409,11 +409,11 @@ ftv_sch(Scheme sch)
 }
 
 Subst *
-bind(unsigned int var, Type t)
+bind(unsigned int var, Type *t)
 {
         Subst *s;
 
-        if (t.type == TVAR && t.var == var) s = NULL;
+        if (t->type == TVAR && t->var == var) s = NULL;
         else if (occurs(ftv(t), var)) error("Occurs error happend", 0, 0,
                                              TYPE_ERROR);
         else {
@@ -437,15 +437,45 @@ tfun(Type *left, Type *right)
         return t;
 }
 
+Type *
+app_subst(Type *t, Subst *s)
+{
+
+        if (t->type == TLIT) return t;
+        else if (t->type == TFUN)
+                return tfun(app_subst(t->fun.left, s), app_subst(t->fun.right, s));
+        else
+                while (s) {
+                        if (s->nvar == t->var) return s->t;
+                        s = s->next;
+                }
+        return t;
+}
+
 Subst *
-unify(Type t1, Type t2)
+compose_subst(Subst *s1, Subst *s2)
+{
+        Subst *p;
+
+        p = s2;
+        while (p) {
+                p->t = app_subst(p->t, s1);
+                if (p->next == NULL)
+                        p->next = s1;
+                p = p->next;
+
+        } return s2;
+}
+
+Subst *
+unify(Type *t1, Type *t2)
 {
         Subst *s;
-        if (t1.type == TLIT && t2.type == TLIT && !strcmp(t2.lit, t1.lit))
+        if (t1->type == TLIT && t2->type == TLIT && !strcmp(t2->lit, t1->lit))
                 s = NULL;
-        else if (t1.type == TVAR) s = bind(t1.var, t2);
-        else if (t2.type == TVAR) s = bind(t2.var, t1);
-        else if (t1.type == TFUN && t2.type == TFUN);
+        else if (t1->type == TVAR) s = bind(t1->var, t2);
+        else if (t2->type == TVAR) s = bind(t2->var, t1);
+        else if (t1->type == TFUN && t2->type == TFUN) ;
 
         return s;
 }
