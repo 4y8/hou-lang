@@ -544,11 +544,11 @@ find_ctx(char *name, Context *ctx)
 }
 
 void
-subst_ctx(Subst *s, Context *ctx)
+app_subst_ctx(Subst *s, Context *ctx)
 {
 
         while (ctx) {
-                ctx->sch =
+                ctx->sch = app_subst_sch(ctx->sch, s);
                 ctx = ctx->next;
         }
 }
@@ -573,7 +573,7 @@ inst(Scheme sch)
 }
 
 TypeReturn
-infer(struct expr expr, Context ctx)
+infer(struct expr expr, Context *ctx)
 {
         TypeReturn tp;
 
@@ -584,10 +584,17 @@ infer(struct expr expr, Context ctx)
                 break;
         case VAR:
                 tp.subst = NULL;
-                tp.type = inst(find_ctx(expr.var, &ctx));
+                tp.type = inst(find_ctx(expr.var, ctx));
                 break;
         case BINOP: {
                 TypeReturn r = infer(*expr.binop.right, ctx);
+                app_subst_ctx(r.subst, ctx);
+                TypeReturn l = infer(*expr.binop.left, ctx);
+                Subst *s = compose_subst(r.subst, l.subst);
+                s = compose_subst(s, unify(l.type, tint()));
+                s = compose_subst(s, unify(r.type, tint()));
+                tp.subst = s;
+                tp.type = tint();
                 break;
         }
         }
@@ -719,10 +726,22 @@ print_decl(struct decl decl, int tab)
         }
 }
 
+void
+print_type(Type t, int tab)
+{
+
+        switch (t.type) {
+        case TINT:
+                printf("int");
+        }
+
+}
+
 int
 main(int argc, char **argv)
 {
 
         print_decl(parse_top_level(lexer("add(a, b)->let fib(a) -> 2 in a + b")).decl, 0);
+        print_type(*infer(*parse_mul(lexer("1 + 1")).expr, NULL).type, 0);
         return 0;
 }
