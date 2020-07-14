@@ -478,6 +478,28 @@ app_subst(Type *t, Subst *s)
         return t;
 }
 
+Scheme
+app_subst_sch(Scheme sch, Subst *s)
+{
+        Subst *p;
+
+        p = s;
+        while (p) {
+                if (occurs(sch.bind, s->nvar)) {
+                        if (s->next) {
+                                s->nvar = s->next->nvar;
+                                s->t = s->next->t;
+                                s->nvar = s->next->nvar;
+                        }
+                        else s->nvar = -1;
+                        continue;
+                }
+                p = p->next;
+        }
+        sch.type = app_subst(sch.type, s);
+        return sch;
+}
+
 Subst *
 compose_subst(Subst *s1, Subst *s2)
 {
@@ -521,6 +543,16 @@ find_ctx(char *name, Context *ctx)
         exit(1);
 }
 
+void
+subst_ctx(Subst *s, Context *ctx)
+{
+
+        while (ctx) {
+                ctx->sch =
+                ctx = ctx->next;
+        }
+}
+
 Type *
 inst(Scheme sch)
 {
@@ -550,6 +582,14 @@ infer(struct expr expr, Context ctx)
                 tp.subst = NULL;
                 tp.type = tint();
                 break;
+        case VAR:
+                tp.subst = NULL;
+                tp.type = inst(find_ctx(expr.var, &ctx));
+                break;
+        case BINOP: {
+                TypeReturn r = infer(*expr.binop.right, ctx);
+                break;
+        }
         }
         return tp;
 }
