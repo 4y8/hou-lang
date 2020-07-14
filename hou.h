@@ -97,6 +97,7 @@ union type {
                 union type *left;
                 union type *right;
         } fun;
+        enum { TLIT, TVAR, TFUN } type;
 };
 
 typedef union type Type;
@@ -106,6 +107,16 @@ typedef struct subst {
         Type t;
         struct subst *next;
 } Subst;
+
+struct ilist {
+        int i;
+        struct ilist *next;
+};
+
+typedef struct {
+        struct ilist *bind;
+        Type type;
+} Scheme;
 
 typedef struct {
         Type type;

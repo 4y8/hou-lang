@@ -8,8 +8,9 @@
 #define TOKEN_SIZE 100
 #define NKEYWORD   2
 
-int linum;
-int cpos;
+unsigned int linum;
+unsigned int cpos;
+unsigned int nvar = 0;
 char_to_tok keywords[] = {{LET, "let"}, {IN, "in"}};
 
 int
@@ -155,29 +156,6 @@ lexer(char *s)
 }
 
 void
-print_token(Token t)
-{
-        switch(t.type) {
-        case IN:      printf("in");                    break;
-        case LET:     printf("let");                   break;
-        case NUM:     printf("number: %d", t.num);     break;
-        case IDE:     printf("identifier: %s", t.str); break;
-        case STR:     printf("string: %s", t.str);     break;
-        case COL:     printf(",");                     break;
-        case ARR:     printf("->");                    break;
-        case PLUS:    printf("+");                     break;
-        case EQUAL:   printf("=");                     break;
-        case MINUS:   printf("-");                     break;
-        case TIMES:   printf("*");                     break;
-        case LPARENT: printf("(");                     break;
-        case DIVISE:  printf("/");                     break;
-        case RPARENT: printf(")");                     break;
-        case SEMICOL: printf(";");                     break;
-        case END:                                      break;
-    }
-}
-
-void
 assert(Token *tokens, Token token)
 {
 
@@ -214,7 +192,8 @@ parse_expr(Token *tokens)
                                         assert(tp, make_token(COL));
                                         ++tp;
                                 }
-                        } p.expr->type = FUN_CALL;
+                        } pt->next = NULL;
+                        p.expr->type = FUN_CALL;
                         p.tokens = tp + 1;
                         p.expr->fun_call.name = tokens->str;
                         p.expr->fun_call.args = args.next;
@@ -280,7 +259,8 @@ parse_body(Token *tokens)
                 bp = bp->next;
                 if (tokens->type == SEMICOL) ++tokens;
                 else loop = 0;
-        } p.tokens = tokens;
+        } bp->next = NULL;
+        p.tokens = tokens;
         p.body = body.next;
         return p;
 }
@@ -381,6 +361,22 @@ parse_top_level(Token *tokens)
         return p;
 }
 
+struct ilist*
+ftv(Type t)
+{
+        struct ilist *l;
+
+        switch (t.type) {
+        case TFUN: break;
+        case TLIT: return NULL;
+        case TVAR:
+                l       = malloc(sizeof(struct ilist));
+                l->next = NULL;
+                l->i    = t.var;
+                break;
+        } return l;
+}
+
 void
 print_tab(int tab)
 {
@@ -432,6 +428,29 @@ op_to_char(unsigned int op)
         case OP_DIVISE: return '/';
         }
         return ' ';
+}
+
+void
+print_token(Token t)
+{
+        switch(t.type) {
+        case IN:      printf("in");                    break;
+        case LET:     printf("let");                   break;
+        case NUM:     printf("number: %d", t.num);     break;
+        case IDE:     printf("identifier: %s", t.str); break;
+        case STR:     printf("string: %s", t.str);     break;
+        case COL:     printf(",");                     break;
+        case ARR:     printf("->");                    break;
+        case PLUS:    printf("+");                     break;
+        case EQUAL:   printf("=");                     break;
+        case MINUS:   printf("-");                     break;
+        case TIMES:   printf("*");                     break;
+        case LPARENT: printf("(");                     break;
+        case DIVISE:  printf("/");                     break;
+        case RPARENT: printf(")");                     break;
+        case SEMICOL: printf(";");                     break;
+        case END:                                      break;
+    }
 }
 
 void
