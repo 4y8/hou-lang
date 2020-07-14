@@ -129,18 +129,24 @@ Token make_token(unsigned int);
 Token make_token_str(char *);
 Token make_token_num(int);
 Token *lexer(char *);
-void print_token(Token);
+
 Parser parse_expr(Token *);
 Parser parse_add(Token *);
 Parser parse_mul(Token *);
+TopParser parse_top_level(Token *);
+BodyParser parse_body(Token *);
+
+Type *tfun(Type *, Type *);
+
+Subst *unify(Type, Type);
+Subst *bind(unsigned int, Type);
+
+void print_token(Token);
 void assert(Token *, Token);
 void print_expr(struct expr, int);
 void print_elist(struct elist, int);
 void error(char *, int, int, Error);
 void print_decl(struct decl, int);
 void print_decllist(struct decllist *, int);
-TopParser parse_top_level(Token *);
-BodyParser parse_body(Token *);
-
 
 #endif // __HOU_H_

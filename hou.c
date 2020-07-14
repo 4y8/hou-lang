@@ -425,10 +425,27 @@ bind(unsigned int var, Type t)
         return s;
 }
 
+Type *
+tfun(Type *left, Type *right)
+{
+        Type *t;
+
+        t = malloc(sizeof(Type));
+        t->type = TFUN;
+        t->fun.right = right;
+        t->fun.left = left;
+        return t;
+}
+
 Subst *
 unify(Type t1, Type t2)
 {
         Subst *s;
+        if (t1.type == TLIT && t2.type == TLIT && !strcmp(t2.lit, t1.lit))
+                s = NULL;
+        else if (t1.type == TVAR) s = bind(t1.var, t2);
+        else if (t2.type == TVAR) s = bind(t2.var, t1);
+        else if (t1.type == TFUN && t2.type == TFUN);
 
         return s;
 }
