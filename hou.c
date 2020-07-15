@@ -560,6 +560,23 @@ gen(Type *t)
         return sch;
 }
 
+Context *
+add_dummy_var(Type *t, struct elist *args, Context *ctx)
+{
+        Context *nctx;
+
+        while (args->next) args = args->next;
+        args->next = malloc(sizeof(struct elist));
+        args->next->expr.var = "@";
+        args->next->expr.type = VAR;
+        nctx = malloc(sizeof(Context));
+        nctx->sch.type = t;
+        nctx->sch.bind = NULL;
+        nctx->name = "@";
+        nctx->next = ctx;
+        return nctx;
+}
+
 TypeReturn
 infer(struct expr expr, Context *ctx)
 {
@@ -587,19 +604,11 @@ infer(struct expr expr, Context *ctx)
         case FUN_CALL: {
                 Type *t = inst(find_ctx(expr.fun_call.name, ctx));
                 TypeReturn args = infer_args(expr.fun_call.args, ctx);
-                struct elist *p = expr.fun_call.args;
-                while(p->next) p = p->next;
-                p->next = malloc(sizeof(struct elist));
-                p->next->expr.var = "@";
-                p->next->expr.type = VAR;
-                p->next->next = NULL;
-                Context *nctx = malloc(sizeof(Context));
-                nctx->sch.type = tvar(++nvar);
-                nctx->sch.bind = NULL;
-                nctx->name = "@";
-                nctx->next = ctx;
-                int save_nvar = nvar;
-                TypeReturn at = infer_args(expr.fun_call.args, nctx);
+                int save_nvar = nvar + 1;
+                TypeReturn at = infer_args(expr.fun_call.args,
+                                           add_dummy_var(tvar(++nvar),
+                                                         expr.fun_call.args,
+                                                         ctx));
                 tp.type = app_subst(tvar(save_nvar), unify(at.type, t));
                 tp.subst = at.subst;
                 break;
@@ -670,16 +679,10 @@ infer_decl(struct decl decl, Context *ctx)
                 app_subst_ctx(bt.subst, ctx);
                 tp.subst = bt.subst;
                 p = decl.fun_decl.args;
-                while(p->next) p = p->next;
-                p->next = malloc(sizeof(struct elist));
-                p->next->expr.var = "@";
-                p->next->expr.type = VAR;
-                Context *nctx = malloc(sizeof(Context));
-                nctx->sch.type = bt.type;
-                nctx->sch.bind = NULL;
-                nctx->name = "@";
-                nctx->next = ctx;
-                TypeReturn at = infer_args(decl.fun_decl.args, nctx);
+                TypeReturn at = infer_args(decl.fun_decl.args,
+                                           add_dummy_var(bt.type,
+                                                         decl.fun_decl.args,
+                                                         ctx));
                 tp.type = at.type;
                 break;
         }
