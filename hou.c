@@ -155,19 +155,20 @@ lexer(char *s)
         return tokens;
 }
 
-void
-assert(Token *tokens, Token token)
-{
-
-        if (tokens->type != token.type)
-                error("Unexpected token", tokens->linum, tokens->cpos,
-                      SYNTAX_ERROR);
-}                   
-
 Token *toks;
 
+void
+assert(Token token)
+{
+
+        if (toks->type != token.type)
+                error("Unexpected token", toks->linum, toks->cpos,
+                      SYNTAX_ERROR);
+        ++toks;
+}                   
+
 Parser
-parse_expr(Token *tokens)
+parse_expr()
 {
         Parser p;
 
@@ -190,10 +191,7 @@ parse_expr(Token *tokens)
                                 pt->next = malloc(sizeof(struct elist));
                                 pt->next->expr = *b.expr;
                                 pt = pt->next;
-                                if (toks->type != RPARENT) {
-                                        assert(toks, make_token(COL));
-                                        ++toks;
-                                }
+                                if (toks->type != RPARENT) assert(make_token(COL));
                         } pt->next = NULL;
                         p.expr->type = FUN_CALL;
                         ++toks;
@@ -239,7 +237,7 @@ parse_expr(Token *tokens)
 }
 
 BodyParser
-parse_body(Token *tokens)
+parse_body()
 {
         struct elist body;
         struct elist *bp;
@@ -274,7 +272,7 @@ binop(struct expr *left, struct expr *right, unsigned int op)
 }
 
 Parser
-parse_op(Token *tokens, Parser (*fun)(Token *), unsigned int op0,
+parse_op(Parser (*fun)(Token *), unsigned int op0,
           unsigned int op1, unsigned int op2, unsigned int op3)
 {
         Parser p;
@@ -299,20 +297,20 @@ parse_op(Token *tokens, Parser (*fun)(Token *), unsigned int op0,
 }
 
 Parser
-parse_mul(Token *tokens)
+parse_mul()
 {
-        return parse_op(tokens, parse_expr, TIMES, OP_TIMES, DIVISE, OP_DIVISE);
+        return parse_op(parse_expr, TIMES, OP_TIMES, DIVISE, OP_DIVISE);
 }
 
 Parser
-parse_add(Token *tokens)
+parse_add()
 {
-        return parse_op(tokens, parse_mul, PLUS, OP_PLUS, MINUS, OP_MINUS);
+        return parse_op(parse_mul, PLUS, OP_PLUS, MINUS, OP_MINUS);
 }
 
 
 TopParser
-parse_top_level(Token *tokens)
+parse_top_level()
 {
         TopParser p;
 
@@ -325,24 +323,23 @@ parse_top_level(Token *tokens)
                         pt = &args;
                         ++toks;
                         while (toks->type != RPARENT) {
-                                Parser ap = parse_expr(toks);
+                                Parser ap = parse_expr();
                                 pt->next = malloc(sizeof(struct elist));
                                 pt->next->expr = *ap.expr;
                                 pt = pt->next;
-                                if (toks->type != RPARENT) {
-                                        assert(toks, make_token(COL));
-                                        ++toks;
-                                }
-                        }
-                        assert(++toks, make_token(ARR));
-                        bp = parse_body(++toks);
+                                if (toks->type != RPARENT)
+                                        assert(make_token(COL));
+                        } ++toks;
+                        assert(make_token(ARR));
+                        bp = parse_body();
                         p.decl.type = FUN_DECL;
                         p.decl.fun_decl.args = args.next;
                         p.decl.fun_decl.body = bp.body;
                 } else if ((toks)->type == EQUAL) {
                         p.decl.var_decl.name = (toks - 1)->str;
                         BodyParser bp;
-                        bp = parse_body(++toks);
+                        ++toks;
+                        bp = parse_body();
                         p.decl.type = VAR_DECL;
                         p.decl.var_decl.body = bp.body;
                 } else error("Unexpected token.", toks->linum, toks->cpos,
@@ -854,10 +851,10 @@ main(int argc, char **argv)
 {
 
         toks = lexer("id(a)->a;3");
-        print_type(*infer_decl(parse_top_level(toks).decl, NULL).type);
+        print_type(*infer_decl(parse_top_level().decl, NULL).type);
         puts("");
-        toks = lexer("let a=2 in a");
-        print_type(*infer(*parse_mul(toks).expr, NULL).type);
+        toks = lexer("let a=2 b=3 in a + b");
+        print_type(*infer(*parse_mul().expr, NULL).type);
         puts("");
         return 0;
 }

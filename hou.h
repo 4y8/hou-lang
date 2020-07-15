@@ -138,11 +138,11 @@ Token make_token_str(char *);
 Token make_token_num(int);
 Token *lexer(char *);
 
-Parser parse_expr(Token *);
-Parser parse_add(Token *);
-Parser parse_mul(Token *);
-TopParser parse_top_level(Token *);
-BodyParser parse_body(Token *);
+Parser parse_expr();
+Parser parse_add();
+Parser parse_mul();
+TopParser parse_top_level();
+BodyParser parse_body();
 
 Type *tfun(Type *, Type *);
 TypeReturn infer(struct expr, Context *);
@@ -154,7 +154,7 @@ Subst *unify(Type *, Type *);
 Subst *bind(unsigned int, Type *);
 
 void print_token(Token);
-void assert(Token *, Token);
+void assert(Token);
 void print_expr(struct expr, int);
 void print_elist(struct elist, int);
 void error(char *, int, int, Error);
