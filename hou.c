@@ -167,65 +167,61 @@ assert(Token token)
         ++toks;
 }                   
 
-Parser
+Expr *
 parse_expr()
 {
-        Parser p;
+        Expr *expr;
 
-        p.expr = malloc(sizeof(struct expr));
-        p.expr->linum = toks->linum;
-        p.expr->cpos  = toks->cpos;
-        p.expr->abspos  = toks->abspos;
+        expr = malloc(sizeof(struct expr));
+        expr->linum = toks->linum;
+        expr->cpos  = toks->cpos;
+        expr->abspos  = toks->abspos;
         switch (toks->type) {
         case IDE:
                 switch ((++toks)->type) {
                 case LPARENT: {
                         struct elist args;
                         struct elist *pt;
-                        p.expr->fun_call.name = (toks - 1)->str;
+                        expr->fun_call.name = (toks - 1)->str;
                         Token *tp;
                         pt = &args;
                         ++toks;
                         while (toks->type != RPARENT) {
-                                Parser b = parse_expr(tp);
                                 pt->next = malloc(sizeof(struct elist));
-                                pt->next->expr = *b.expr;
+                                pt->next->expr = *parse_expr();
                                 pt = pt->next;
                                 if (toks->type != RPARENT) assert(make_token(COL));
                         } pt->next = NULL;
-                        p.expr->type = FUN_CALL;
+                        expr->type = FUN_CALL;
                         ++toks;
-                        p.expr->fun_call.args = args.next;
+                        expr->fun_call.args = args.next;
                         break;
                 }
                 default:
-                        p.expr->type = VAR;
-                        p.expr->var = (toks - 1)->str;
+                        expr->type = VAR;
+                        expr->var = (toks - 1)->str;
                         break;
                 }
                 break;
         case NUM:
-                p.expr->type = INT;
-                p.expr->num = toks->num;
+                expr->type = INT;
+                expr->num = toks->num;
                 ++toks;
                 break;
         case LET: {
                 struct decllist l;
                 struct decllist *lp;
-                BodyParser b;
                 lp = &l;
                 ++toks;
                 while (toks->type != IN) {
-                        TopParser b = parse_top_level(toks);
                         lp->next = malloc(sizeof(struct decllist));
-                        lp->next->decl = b.decl;
+                        lp->next->decl = parse_top_level(toks);
                         lp = lp->next;
                 } ++toks;
                 lp->next = NULL;
-                b = parse_body(toks);
-                p.expr->letin.decl = l.next;
-                p.expr->letin.expr = b.body;
-                p.expr->type = LETIN;
+                expr->letin.decl = l.next;
+                expr->letin.expr = parse_body(toks);
+                expr->type = LETIN;
                 break;
         }
         default:
@@ -233,29 +229,26 @@ parse_expr()
                       SYNTAX_ERROR);
                 break;
         }
-        return p;
+        return expr;
 }
 
-BodyParser
+struct elist *
 parse_body()
 {
         struct elist body;
         struct elist *bp;
         unsigned int loop;
-        BodyParser p;
 
         loop = 1;
         bp = &body;
         while (loop) {
-                Parser p = parse_add(toks);
                 bp->next = malloc(sizeof(struct elist));
-                bp->next->expr = *p.expr;
+                bp->next->expr = *parse_add();
                 bp = bp->next;
                 if (toks->type == SEMICOL) ++toks;
                 else loop = 0;
         } bp->next = NULL;
-        p.body = body.next;
-        return p;
+        return body.next;
 }
 
 struct expr *
@@ -271,81 +264,74 @@ binop(struct expr *left, struct expr *right, unsigned int op)
         return e;
 }
 
-Parser
-parse_op(Parser (*fun)(Token *), unsigned int op0,
+Expr *
+parse_op(Expr * (*fun)(), unsigned int op0,
           unsigned int op1, unsigned int op2, unsigned int op3)
 {
-        Parser p;
-        struct expr *e;
+        Expr *expr;
+        Expr *e;
 
-        p = fun(toks);
+        expr = fun(toks);
         e = malloc(sizeof(struct expr));
-        e = p.expr;
+        e = expr;
         for (;;) {
                 if (toks->type == op0) {
-                        p = fun(++toks);
-                        e = binop(e, p.expr, op1);
+                        expr = fun(++toks);
+                        e = binop(e, expr, op1);
                 } else if (toks->type == op2) {
-                        p = fun(toks);
-                        e = binop(e, p.expr, op3);
+                        expr = fun(toks);
+                        e = binop(e, expr, op3);
                 } else {
-                        p.expr = e;
-                        return p;
+                        return e;
                 }
         }
 
 }
 
-Parser
+Expr *
 parse_mul()
 {
         return parse_op(parse_expr, TIMES, OP_TIMES, DIVISE, OP_DIVISE);
 }
 
-Parser
+Expr *
 parse_add()
 {
         return parse_op(parse_mul, PLUS, OP_PLUS, MINUS, OP_MINUS);
 }
 
-
-TopParser
+Decl
 parse_top_level()
 {
-        TopParser p;
+        Decl decl;
 
         if (toks->type == IDE) {
                 if ((++toks)->type == LPARENT) {
                         struct elist args;
                         struct elist *pt;
-                        BodyParser bp;
-                        p.decl.fun_decl.name = (toks - 1)->str;
+                        decl.fun_decl.name = (toks - 1)->str;
                         pt = &args;
                         ++toks;
                         while (toks->type != RPARENT) {
-                                Parser ap = parse_expr();
                                 pt->next = malloc(sizeof(struct elist));
-                                pt->next->expr = *ap.expr;
+                                pt->next->expr = *parse_expr();
                                 pt = pt->next;
                                 if (toks->type != RPARENT)
                                         assert(make_token(COL));
                         } ++toks;
                         assert(make_token(ARR));
-                        bp = parse_body();
-                        p.decl.type = FUN_DECL;
-                        p.decl.fun_decl.args = args.next;
-                        p.decl.fun_decl.body = bp.body;
+                        decl.type = FUN_DECL;
+                        decl.fun_decl.args = args.next;
+                        decl.fun_decl.body = parse_body();
                 } else if ((toks)->type == EQUAL) {
-                        p.decl.var_decl.name = (toks - 1)->str;
-                        BodyParser bp;
+                        decl.var_decl.name = (toks - 1)->str;
                         ++toks;
-                        bp = parse_body();
-                        p.decl.type = VAR_DECL;
-                        p.decl.var_decl.body = bp.body;
+                        decl.type = VAR_DECL;
+                        decl.var_decl.body = parse_body();
                 } else error("Unexpected token.", toks->linum, toks->cpos,
                              SYNTAX_ERROR);
         } else error("Unexpected token.", toks->linum, toks->cpos, SYNTAX_ERROR);
-        return p;
+        return decl;
 }
 
 struct ilist*
@@ -851,10 +837,10 @@ main(int argc, char **argv)
 {
 
         toks = lexer("id(a)->a;3");
-        print_type(*infer_decl(parse_top_level().decl, NULL).type);
+        print_type(*infer_decl(parse_top_level(), NULL).type);
         puts("");
-        toks = lexer("let a=2 b=3 in a + b");
-        print_type(*infer(*parse_mul().expr, NULL).type);
+        toks = lexer("let a=2 b=3 in a + b * 2");
+        print_type(*infer(*parse_mul(), NULL).type);
         puts("");
         return 0;
 }

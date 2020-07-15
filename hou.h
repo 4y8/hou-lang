@@ -55,15 +55,7 @@ struct slist {
         struct slist *next;
 };
 
-typedef struct {
-        struct expr *expr;
-        Token *tokens;
-} Parser;
-
-typedef struct {
-        struct elist *body;
-        Token *tokens;
-} BodyParser;
+typedef struct expr Expr;
 
 struct decl {
         union {
@@ -85,11 +77,6 @@ struct decllist {
         struct decllist *next;
 };
 
-typedef struct {
-        struct decl decl;
-        Token *tokens;
-} TopParser;
-
 struct type {
         union {
                 char *lit;
@@ -103,6 +90,8 @@ struct type {
 };
 
 typedef struct type Type;
+
+typedef struct decl Decl;
 
 typedef struct subst {
         unsigned int nvar;
@@ -138,11 +127,11 @@ Token make_token_str(char *);
 Token make_token_num(int);
 Token *lexer(char *);
 
-Parser parse_expr();
-Parser parse_add();
-Parser parse_mul();
-TopParser parse_top_level();
-BodyParser parse_body();
+Expr *parse_expr();
+Expr *parse_add();
+Expr *parse_mul();
+Decl parse_top_level();
+struct elist *parse_body();
 
 Type *tfun(Type *, Type *);
 TypeReturn infer(struct expr, Context *);
