@@ -8,11 +8,6 @@
 #define TOKEN_SIZE 100
 #define NKEYWORD   2
 
-#define length(e, var) while(e) {               \
-                ++(*var);                       \
-                e = e->next;                    \
-        }
-
 unsigned int linum;
 unsigned int cpos;
 unsigned int nvar = 0;
@@ -597,8 +592,36 @@ infer(struct expr expr, Context *ctx)
                 tp.type = tint();
                 break;
         }
+        case FUN_CALL: {
+                Type *t = inst(find_ctx(expr.fun_call.name, ctx));
+                TypeReturn args = infer_args(expr.fun_call.args, ctx);
+                tp.subst = unify(t, args.type);
+                tp.subst = compose_subst(tp.subst, args.subst);
+                break;
+        }
         }
         return tp;
+}
+
+TypeReturn
+infer_args(struct elist *args, Context *ctx)
+{
+        TypeReturn tp;
+
+        tp.type = NULL;
+        if (args) {
+                TypeReturn arg  = infer(args->expr, ctx);
+                TypeReturn rest = infer_args(args->next, ctx);
+                if (rest.type) {
+                        tp.type  = tfun(arg.type, rest.type);
+                        tp.subst = compose_subst(arg.subst, rest.subst);
+                } else {
+                        tp.type  = arg.type;
+                        tp.subst = arg.subst;
+                }
+        }
+        return tp;
+
 }
 
 void
@@ -727,12 +750,24 @@ print_decl(struct decl decl, int tab)
 }
 
 void
-print_type(Type t, int tab)
+print_type(Type t)
 {
 
         switch (t.type) {
         case TINT:
                 printf("int");
+                break;
+        case TFUN:
+                print_type(*t.fun.left);
+                printf(" -> ");
+                print_type(*t.fun.right);
+                break;
+        case TLIT:
+                printf("%s", t.lit);
+                break;
+        case TVAR:
+                printf("%d", t.var);
+                break;
         }
 
 }
@@ -742,6 +777,6 @@ main(int argc, char **argv)
 {
 
         print_decl(parse_top_level(lexer("add(a, b)->let fib(a) -> 2 in a + b")).decl, 0);
-        print_type(*infer(*parse_mul(lexer("1 + 1")).expr, NULL).type, 0);
+        print_type(*infer(*parse_mul(lexer("1 + 1")).expr, NULL).type);
         return 0;
 }
