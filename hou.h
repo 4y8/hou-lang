@@ -148,6 +148,10 @@ TypeReturn infer_body(struct elist *, Context *);
 Subst *unify(Type *, Type *);
 Subst *bind(unsigned int, Type *);
 
+char *compile_expr(Expr, SContext *);
+char *compile_decl(Decl, SContext *);
+char *compile_body(struct elist *, SContext *);
+
 void print_token(Token);
 void assert(Token);
 void print_expr(struct expr, int);

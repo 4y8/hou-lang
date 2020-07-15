@@ -577,6 +577,14 @@ add_dummy_var(Type *t, struct elist *args, Context *ctx)
         return nctx;
 }
 
+char *
+decl_name(Decl decl)
+{
+
+        if (decl.type == VAR_DECL) return decl.var_decl.name;
+        return decl.fun_decl.name;
+}
+
 TypeReturn
 infer(struct expr expr, Context *ctx)
 {
@@ -616,10 +624,7 @@ infer(struct expr expr, Context *ctx)
                 while (p) {
                         Context *nctx = malloc(sizeof(struct decllist));
                         TypeReturn dt = infer_decl(p->decl, ctx);
-                        if (p->decl.type == VAR_DECL)
-                                nctx->name = p->decl.var_decl.name;
-                        else
-                                nctx->name = p->decl.fun_decl.name;
+                        nctx->name = decl_name(p->decl);
                         nctx->sch = gen(dt.type);
                         nctx->next = ctx;
                         ctx = nctx;
@@ -884,8 +889,23 @@ free_reg()
         exit(1);
 }
 
+int ndecl = -1;
+struct decllist *decls = NULL;
+
+SContext *
+add_sctx(SContext *ctx, char *name, int num)
+{
+        SContext *nctx;
+
+        nctx = malloc(sizeof(SContext));
+        nctx->next = ctx;
+        nctx->name = name;
+        nctx->num = num;
+        return nctx;
+}
+
 char *
-compile_expr(Expr e, SContext *ctx, int nvar)
+compile_expr(Expr e, SContext *ctx)
 {
 
         switch (e.type) {
@@ -896,8 +916,8 @@ compile_expr(Expr e, SContext *ctx, int nvar)
                 break;
         }
         case BINOP: {
-                char *regl = compile_expr(*e.binop.left, ctx, nvar);
-                char *regr = compile_expr(*e.binop.right, ctx, nvar);
+                char *regl = compile_expr(*e.binop.left, ctx);
+                char *regr = compile_expr(*e.binop.right, ctx);
                 switch (e.binop.op) {
                 case OP_PLUS:
                         printf("addq %s, %s", regl, regr);
@@ -923,10 +943,35 @@ compile_expr(Expr e, SContext *ctx, int nvar)
                                 return reg;
                         } ctx = ctx->next;
                 } return e.var;
+        case LETIN: {
+                struct decllist *p = e.letin.decl;
+                while (p) {
+                        char *s = compile_decl(p->decl, ctx);
+                        p = p->next;
+                }
+                break;
+        }
         case FUN_CALL:
                 break;
         }
         exit(1);
+}
+
+char *
+compile_decl(Decl decl, SContext *ctx)
+{
+        char *s;
+        struct decllist *p;
+
+        s = malloc(64);
+        p = decls;
+        sprintf(s, "__decl%d", ++ndecl);
+        while (p->next) p = p->next;
+        p->next = malloc(sizeof(struct decllist));
+        p = p->next;
+        p->next = NULL;
+        p->decl = decl;
+        return s;
 }
 
 int
@@ -934,6 +979,6 @@ main(int argc, char **argv)
 {
 
         toks = lexer("1 + 2");
-        compile_expr(*parse_add(), NULL, 0);
+        compile_expr(*parse_add(), NULL);
         return 0;
 }
