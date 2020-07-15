@@ -457,6 +457,7 @@ tvar (unsigned int var)
 
         t = malloc(sizeof(Type));
         t->var = var;
+        t->type = TVAR;
         return t;
 }
 
@@ -509,7 +510,8 @@ compose_subst(Subst *s1, Subst *s2)
                         p->next = s1;
                 p = p->next;
 
-        } return s2;
+        }
+        return s2;
 }
 
 Subst *
@@ -566,7 +568,8 @@ inst(Scheme sch)
                 s.t = tvar(++nvar);
                 p = p->next;
                 t = app_subst(t, &s);
-        } return t;
+        }
+        return t;
 }
 
 Scheme
@@ -662,21 +665,28 @@ infer_decl(struct decl decl, Context *ctx)
         case FUN_DECL: {
                 struct elist *p = decl.fun_decl.args;
                 while (p) {
-                        Context *nctx = malloc(sizeof(struct decllist));
+                        Context *nctx = malloc(sizeof(Context));
                         nctx->name = p->expr.var;
                         nctx->sch.bind = NULL;
                         nctx->sch.type = tvar(++nvar);
                         nctx->next = ctx;
                         ctx = nctx;
                         p = p->next;
-                } TypeReturn bt = infer_body(decl.fun_decl.body, ctx);
+                }
+                TypeReturn bt = infer_body(decl.fun_decl.body, ctx);
                 app_subst_ctx(bt.subst, ctx);
                 tp.subst = bt.subst;
-                TypeReturn at = infer_args(decl.fun_decl.args, ctx);
-                Type *ptr = at.type;
-                while (ptr->type == TFUN) ptr = ptr->fun.right;
-                Type *left = ptr;
-                ptr = tfun(left, bt.type);
+                p = decl.fun_decl.args;
+                while(p->next) p = p->next;
+                p->next = malloc(sizeof(struct elist));
+                p->next->expr.var = "@";
+                p->next->expr.type = VAR;
+                Context *nctx = malloc(sizeof(Context));
+                nctx->sch.type = bt.type;
+                nctx->sch.bind = NULL;
+                nctx->name = "@";
+                nctx->next = ctx;
+                TypeReturn at = infer_args(decl.fun_decl.args, nctx);
                 tp.type = at.type;
                 break;
         }
@@ -689,14 +699,15 @@ infer_body(struct elist *body, Context *ctx)
 {
         TypeReturn tp;
 
-
+        tp.subst = NULL;
         while (body) {
                 TypeReturn inf = infer(body->expr, ctx);
                 tp.subst = compose_subst(tp.subst, inf.subst);
                 app_subst_ctx(tp.subst, ctx);
                 tp.type = inf.type;
                 body = body->next;
-        } return tp;
+        }
+        return tp;
 }
 
 void
@@ -850,8 +861,7 @@ int
 main(int argc, char **argv)
 {
 
-        print_decl(parse_top_level(lexer("add(a, b)->let fib(a) -> 2 in a + b")).decl, 0);
-        print_type(*infer_decl(parse_top_level(lexer("fib(a)->2")).decl, NULL).type);
+        print_type(*infer_decl(parse_top_level(lexer("id(a, b)->b + 2")).decl, NULL).type);
         //print_type(*infer(*parse_mul(lexer("let fib(a)->2 in ")).expr, NULL).type);
         return 0;
 }

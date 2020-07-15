@@ -90,17 +90,19 @@ typedef struct {
         Token *tokens;
 } TopParser;
 
-union type {
-        char *lit;
-        unsigned int var;
-        struct {
-                union type *left;
-                union type *right;
-        } fun;
+struct type {
+        union {
+                char *lit;
+                unsigned int var;
+                struct {
+                        struct type *left;
+                        struct type *right;
+                } fun;
+        };
         enum { TLIT, TVAR, TFUN, TINT } type;
 };
 
-typedef union type Type;
+typedef struct type Type;
 
 typedef struct subst {
         unsigned int nvar;
@@ -158,5 +160,6 @@ void print_elist(struct elist, int);
 void error(char *, int, int, Error);
 void print_decl(struct decl, int);
 void print_decllist(struct decllist *, int);
+void print_type(Type);
 
 #endif // __HOU_H_
