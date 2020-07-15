@@ -69,7 +69,7 @@ struct decl {
         union {
                 struct {
                         char *name;
-                        struct slist *args;
+                        struct elist *args;
                         struct elist *body;
                 } fun_decl;
                 struct {

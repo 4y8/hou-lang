@@ -326,22 +326,24 @@ parse_top_level(Token *tokens)
 
         if (tokens->type == IDE) {
                 if ((tokens + 1)->type == LPARENT) {
-                        struct slist args;
-                        struct slist *pt;
+                        struct elist args;
+                        struct elist *pt;
                         BodyParser bp;
                         Token *tp;
                         pt = &args;
                         tp = tokens + 2;
                         while (tp->type != RPARENT) {
-                                pt->next = malloc(sizeof(struct slist));
-                                assert(tp, make_token(IDE));
-                                pt->next->str = tp->str;
+                                Parser ap = parse_expr(tp);
+                                tp = ap.tokens;
+                                pt->next = malloc(sizeof(struct elist));
+                                pt->next->expr = *ap.expr;
                                 pt = pt->next;
-                                if ((++tp)->type != RPARENT) {
+                                if (tp->type != RPARENT) {
                                         assert(tp, make_token(COL));
                                         ++tp;
                                 }
-                        } assert(++tp, make_token(ARR));
+                        }
+                        assert(++tp, make_token(ARR));
                         bp = parse_body(++tp);
                         p.decl.type = FUN_DECL;
                         p.tokens = bp.tokens;
@@ -582,13 +584,12 @@ infer(struct expr expr, Context *ctx)
 {
         TypeReturn tp;
 
+        tp.subst = NULL;
         switch (expr.type) {
         case INT:
-                tp.subst = NULL;
                 tp.type = tint();
                 break;
         case VAR:
-                tp.subst = NULL;
                 tp.type = inst(find_ctx(expr.var, ctx));
                 break;
         case BINOP: {
@@ -605,8 +606,7 @@ infer(struct expr expr, Context *ctx)
         case FUN_CALL: {
                 Type *t = inst(find_ctx(expr.fun_call.name, ctx));
                 TypeReturn args = infer_args(expr.fun_call.args, ctx);
-                tp.subst = unify(t, args.type);
-                tp.subst = compose_subst(tp.subst, args.subst);
+                struct elist *p = expr.fun_call.args;
                 break;
         }
         case LETIN: {
@@ -659,8 +659,27 @@ infer_decl(struct decl decl, Context *ctx)
         case VAR_DECL:
                 tp = infer_body(decl.var_decl.body, ctx);
                 break;
-        case FUN_DECL:
+        case FUN_DECL: {
+                struct elist *p = decl.fun_decl.args;
+                while (p) {
+                        Context *nctx = malloc(sizeof(struct decllist));
+                        nctx->name = p->expr.var;
+                        nctx->sch.bind = NULL;
+                        nctx->sch.type = tvar(++nvar);
+                        nctx->next = ctx;
+                        ctx = nctx;
+                        p = p->next;
+                } TypeReturn bt = infer_body(decl.fun_decl.body, ctx);
+                app_subst_ctx(bt.subst, ctx);
+                tp.subst = bt.subst;
+                TypeReturn at = infer_args(decl.fun_decl.args, ctx);
+                Type *ptr = at.type;
+                while (ptr->type == TFUN) ptr = ptr->fun.right;
+                Type *left = ptr;
+                ptr = tfun(left, bt.type);
+                tp.type = at.type;
                 break;
+        }
         }
         return tp;
 }
@@ -795,7 +814,7 @@ print_decl(struct decl decl, int tab)
         switch (decl.type) {
         case FUN_DECL:
                 printf("function: %s\n", decl.fun_decl.name);
-                print_slist(decl.fun_decl.args, tab + 2);
+                print_elist(*decl.fun_decl.args, tab + 2);
                 print_elist(*decl.fun_decl.body, tab + 2);
                 break;
         case VAR_DECL:
@@ -832,6 +851,7 @@ main(int argc, char **argv)
 {
 
         print_decl(parse_top_level(lexer("add(a, b)->let fib(a) -> 2 in a + b")).decl, 0);
-        print_type(*infer(*parse_mul(lexer("let a = 2 + 2 b = 2 in a + b")).expr, NULL).type);
+        print_type(*infer_decl(parse_top_level(lexer("fib(a)->2")).decl, NULL).type);
+        //print_type(*infer(*parse_mul(lexer("let fib(a)->2 in ")).expr, NULL).type);
         return 0;
 }
