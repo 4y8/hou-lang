@@ -315,6 +315,8 @@ parse_top_level()
                         while (toks->type != RPARENT) {
                                 pt->next = malloc(sizeof(struct elist));
                                 pt->next->expr = *parse_expr();
+                                if (pt->next->expr.type != VAR)
+                                        error("Unexpected token", (toks - 1)->linum, (toks - 1)->cpos, SYNTAX_ERROR);
                                 pt = pt->next;
                                 if (toks->type != RPARENT)
                                         assert(make_token(COL));
@@ -436,7 +438,7 @@ Type *
 app_subst(Type *t, Subst *s)
 {
 
-        if (t->type == TLIT) return t;
+        if (t->type == TLIT || t->type == TINT) return t;
         else if (t->type == TFUN)
                 return tfun(app_subst(t->fun.left, s), app_subst(t->fun.right, s));
         else
@@ -479,8 +481,10 @@ compose_subst(Subst *s1, Subst *s2)
         p = s2;
         while (p) {
                 p->t = app_subst(p->t, s1);
-                if (p->next == NULL)
+                if (p->next == NULL) {
                         p->next = s1;
+                        return s2;
+                }
                 p = p->next;
 
         }
@@ -494,13 +498,12 @@ unify(Type *t1, Type *t2)
         if (t1->type == TLIT && t2->type == TLIT && !strcmp(t2->lit, t1->lit))
                 s = NULL;
         else if (t1->type == TINT && t2->type == TINT) s = NULL;
-        else if (t1->type == TVAR) {
-                s = bind(t1->var, t2);
-        }
+        else if (t1->type == TVAR) s = bind(t1->var, t2);
         else if (t2->type == TVAR) s = bind(t2->var, t1);
         else if (t1->type == TFUN && t2->type == TFUN)
-                compose_subst(unify(t1->fun.right, t2->fun.right),
+                s = compose_subst(unify(t1->fun.right, t2->fun.right),
                               unify(t1->fun.left, t2->fun.left));
+        else error("Can't unfiy types", 0, 0, TYPE_ERROR);
 
         return s;
 }
@@ -509,7 +512,7 @@ Scheme
 find_ctx(char *name, Context *ctx)
 {
 
-        while(ctx) {
+        while (ctx) {
                 if (!strcmp(name, ctx->name))
                         return ctx->sch;
                 ctx = ctx->next;
@@ -585,6 +588,20 @@ infer(struct expr expr, Context *ctx)
                 Type *t = inst(find_ctx(expr.fun_call.name, ctx));
                 TypeReturn args = infer_args(expr.fun_call.args, ctx);
                 struct elist *p = expr.fun_call.args;
+                while(p->next) p = p->next;
+                p->next = malloc(sizeof(struct elist));
+                p->next->expr.var = "@";
+                p->next->expr.type = VAR;
+                p->next->next = NULL;
+                Context *nctx = malloc(sizeof(Context));
+                nctx->sch.type = tvar(++nvar);
+                nctx->sch.bind = NULL;
+                nctx->name = "@";
+                nctx->next = ctx;
+                int save_nvar = nvar;
+                TypeReturn at = infer_args(expr.fun_call.args, nctx);
+                tp.type = app_subst(tvar(save_nvar), unify(at.type, t));
+                tp.subst = at.subst;
                 break;
         }
         case LETIN: {
@@ -594,6 +611,8 @@ infer(struct expr expr, Context *ctx)
                         TypeReturn dt = infer_decl(p->decl, ctx);
                         if (p->decl.type == VAR_DECL)
                                 nctx->name = p->decl.var_decl.name;
+                        else
+                                nctx->name = p->decl.fun_decl.name;
                         nctx->sch = gen(dt.type);
                         nctx->next = ctx;
                         ctx = nctx;
@@ -629,7 +648,6 @@ infer_args(struct elist *args, Context *ctx)
 TypeReturn
 infer_decl(struct decl decl, Context *ctx)
 {
-
         TypeReturn tp;
 
         tp.subst = NULL;
@@ -788,7 +806,7 @@ print_expr(struct expr expr, int tab)
                 printf("binop: %c\n", op_to_char(expr.binop.op));
                 print_expr(*expr.binop.left, tab + 2);
                 print_expr(*expr.binop.right, tab + 2);
-        default: break;
+                break;
         }
 }
 
@@ -836,10 +854,7 @@ int
 main(int argc, char **argv)
 {
 
-        toks = lexer("id(a)->a;3");
-        print_type(*infer_decl(parse_top_level(), NULL).type);
-        puts("");
-        toks = lexer("let a=2 b=3 in a + b * 2");
+        toks = lexer("let add(a, b) -> a + b in add(1, 2)");
         print_type(*infer(*parse_mul(), NULL).type);
         puts("");
         return 0;
