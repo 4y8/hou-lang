@@ -605,10 +605,8 @@ infer(struct expr expr, Context *ctx)
                 Type *t = inst(find_ctx(expr.fun_call.name, ctx));
                 TypeReturn args = infer_args(expr.fun_call.args, ctx);
                 int save_nvar = nvar + 1;
-                TypeReturn at = infer_args(expr.fun_call.args,
-                                           add_dummy_var(tvar(++nvar),
-                                                         expr.fun_call.args,
-                                                         ctx));
+                Context *nctx = add_dummy_var(tvar(++nvar), expr.fun_call.args, ctx);
+                TypeReturn at = infer_args(expr.fun_call.args, nctx);
                 tp.type = app_subst(tvar(save_nvar), unify(at.type, t));
                 tp.subst = at.subst;
                 break;
@@ -674,15 +672,12 @@ infer_decl(struct decl decl, Context *ctx)
                         nctx->next = ctx;
                         ctx = nctx;
                         p = p->next;
-                }
-                TypeReturn bt = infer_body(decl.fun_decl.body, ctx);
+                } TypeReturn bt = infer_body(decl.fun_decl.body, ctx);
                 app_subst_ctx(bt.subst, ctx);
                 tp.subst = bt.subst;
                 p = decl.fun_decl.args;
-                TypeReturn at = infer_args(decl.fun_decl.args,
-                                           add_dummy_var(bt.type,
-                                                         decl.fun_decl.args,
-                                                         ctx));
+                Context *nctx = add_dummy_var(bt.type, decl.fun_decl.args, ctx);
+                TypeReturn at = infer_args(decl.fun_decl.args, nctx);
                 tp.type = at.type;
                 break;
         }
@@ -920,7 +915,16 @@ compile_expr(Expr e, SContext *ctx, int nvar)
                 return regr;
                 break;
         }
-        default: break;
+        case VAR:
+                while (ctx) {
+                        if (!strcmp(e.var, ctx->name)) {
+                                char *reg = free_reg();
+                                printf("movq %d(%%esp), %s", ctx->num * 8, reg);
+                                return reg;
+                        } ctx = ctx->next;
+                } return e.var;
+        case FUN_CALL:
+                break;
         }
         exit(1);
 }
@@ -929,9 +933,6 @@ int
 main(int argc, char **argv)
 {
 
-        toks = lexer("let add(a, b) -> a + b in add(1, 2)");
-        print_type(*infer(*parse_add(), NULL).type);
-        puts("");
         toks = lexer("1 + 2");
         compile_expr(*parse_add(), NULL, 0);
         return 0;
