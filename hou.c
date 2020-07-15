@@ -567,6 +567,16 @@ inst(Scheme sch)
         } return t;
 }
 
+Scheme
+gen(Type *t)
+{
+        Scheme sch;
+
+        sch.type = t;
+        sch.bind = ftv(t);
+        return sch;
+}
+
 TypeReturn
 infer(struct expr expr, Context *ctx)
 {
@@ -599,6 +609,20 @@ infer(struct expr expr, Context *ctx)
                 tp.subst = compose_subst(tp.subst, args.subst);
                 break;
         }
+        case LETIN: {
+                struct decllist *p = expr.letin.decl;
+                while (p) {
+                        Context *nctx = malloc(sizeof(struct decllist));
+                        TypeReturn dt = infer_decl(p->decl, ctx);
+                        if (p->decl.type == VAR_DECL)
+                                nctx->name = p->decl.var_decl.name;
+                        nctx->sch = gen(dt.type);
+                        nctx->next = ctx;
+                        ctx = nctx;
+                        p = p->next;
+                }
+                tp = infer_body(expr.letin.expr, ctx);
+        }
         }
         return tp;
 }
@@ -622,6 +646,38 @@ infer_args(struct elist *args, Context *ctx)
         }
         return tp;
 
+}
+
+TypeReturn
+infer_decl(struct decl decl, Context *ctx)
+{
+
+        TypeReturn tp;
+
+        tp.subst = NULL;
+        switch (decl.type) {
+        case VAR_DECL:
+                tp = infer_body(decl.var_decl.body, ctx);
+                break;
+        case FUN_DECL:
+                break;
+        }
+        return tp;
+}
+
+TypeReturn
+infer_body(struct elist *body, Context *ctx)
+{
+        TypeReturn tp;
+
+
+        while (body) {
+                TypeReturn inf = infer(body->expr, ctx);
+                tp.subst = compose_subst(tp.subst, inf.subst);
+                app_subst_ctx(tp.subst, ctx);
+                tp.type = inf.type;
+                body = body->next;
+        } return tp;
 }
 
 void
@@ -769,7 +825,6 @@ print_type(Type t)
                 printf("%d", t.var);
                 break;
         }
-
 }
 
 int
@@ -777,6 +832,6 @@ main(int argc, char **argv)
 {
 
         print_decl(parse_top_level(lexer("add(a, b)->let fib(a) -> 2 in a + b")).decl, 0);
-        print_type(*infer(*parse_mul(lexer("1 + 1")).expr, NULL).type);
+        print_type(*infer(*parse_mul(lexer("let a = 2 + 2 b = 2 in a + b")).expr, NULL).type);
         return 0;
 }
