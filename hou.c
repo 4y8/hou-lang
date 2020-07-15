@@ -503,6 +503,8 @@ compose_subst(Subst *s1, Subst *s2)
 {
         Subst *p;
 
+        if (!s1) return s2;
+        if (!s2) return s1;
         p = s2;
         while (p) {
                 p->t = app_subst(p->t, s1);
@@ -521,7 +523,9 @@ unify(Type *t1, Type *t2)
         if (t1->type == TLIT && t2->type == TLIT && !strcmp(t2->lit, t1->lit))
                 s = NULL;
         else if (t1->type == TINT && t2->type == TINT) s = NULL;
-        else if (t1->type == TVAR) s = bind(t1->var, t2);
+        else if (t1->type == TVAR) {
+                s = bind(t1->var, t2);
+        }
         else if (t2->type == TVAR) s = bind(t2->var, t1);
         else if (t1->type == TFUN && t2->type == TFUN)
                 compose_subst(unify(t1->fun.right, t2->fun.right),
@@ -861,7 +865,7 @@ int
 main(int argc, char **argv)
 {
 
-        print_type(*infer_decl(parse_top_level(lexer("id(a, b)->b + 2")).decl, NULL).type);
+        print_type(*infer_decl(parse_top_level(lexer("id(a)->a")).decl, NULL).type);
         //print_type(*infer(*parse_mul(lexer("let fib(a)->2 in ")).expr, NULL).type);
         return 0;
 }
