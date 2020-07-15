@@ -850,12 +850,86 @@ print_type(Type t)
         }
 }
 
+#define NREG 8
+
+int used_registers[8] = {
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+};
+
+char *registers[] = {
+        "%rax",
+        "%rcx",
+        "%rdx",
+        "%rsi",
+        "%r8",
+        "%r9",
+        "%r10",
+        "%r11"
+};
+
+char *
+free_reg()
+{
+
+        for (int i = 0; i < NREG; ++i)
+                if (!used_registers[i]) {
+                        used_registers[i] = 1;
+                        return registers[i];
+                }
+        exit(1);
+}
+
+char *
+compile_expr(Expr e, SContext *ctx, int nvar)
+{
+
+        switch (e.type) {
+        case INT: {
+                char *reg = free_reg();
+                printf("movq $%d, %s\n", e.num, reg);
+                return reg;
+                break;
+        }
+        case BINOP: {
+                char *regl = compile_expr(*e.binop.left, ctx, nvar);
+                char *regr = compile_expr(*e.binop.right, ctx, nvar);
+                switch (e.binop.op) {
+                case OP_PLUS:
+                        printf("addq %s, %s", regl, regr);
+                        break;
+                case OP_MINUS:
+                        printf("subq %s, %s", regl, regr);
+                        break;
+                case OP_TIMES:
+                        printf("imulq %s, %s", regl, regr);
+                        break;
+                case OP_DIVISE:
+                        printf("idivq %s, %s", regl, regr);
+                        break;
+                }
+                return regr;
+                break;
+        }
+        default: break;
+        }
+        exit(1);
+}
+
 int
 main(int argc, char **argv)
 {
 
         toks = lexer("let add(a, b) -> a + b in add(1, 2)");
-        print_type(*infer(*parse_mul(), NULL).type);
+        print_type(*infer(*parse_add(), NULL).type);
         puts("");
+        toks = lexer("1 + 2");
+        compile_expr(*parse_add(), NULL, 0);
         return 0;
 }

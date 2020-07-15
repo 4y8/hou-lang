@@ -120,6 +120,12 @@ typedef struct ctx_elem {
         struct ctx_elem *next;
 } Context;
 
+typedef struct sctx_elem {
+        char *name;
+        int num;
+        struct sctx_elem *next;
+} SContext;
+
 typedef enum { TYPE_ERROR, UNEXPECTED_CHAR, SYNTAX_ERROR } Error;
 
 Token make_token(unsigned int);
