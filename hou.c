@@ -867,14 +867,14 @@ int used_registers[8] = {
 };
 
 char *registers[] = {
-        "%rax",
-        "%rcx",
-        "%rdx",
-        "%rsi",
-        "%r8",
-        "%r9",
-        "%r10",
-        "%r11"
+        "rax",
+        "rcx",
+        "rdx",
+        "rsi",
+        "r8",
+        "r9",
+        "r10",
+        "r11"
 };
 
 char *
@@ -911,7 +911,7 @@ compile_expr(Expr e, SContext *ctx)
         switch (e.type) {
         case INT: {
                 char *reg = free_reg();
-                printf("movq $%d, %s\n", e.num, reg);
+                printf("mov %s, %d\n", reg, e.num);
                 return reg;
                 break;
         }
@@ -920,16 +920,16 @@ compile_expr(Expr e, SContext *ctx)
                 char *regr = compile_expr(*e.binop.right, ctx);
                 switch (e.binop.op) {
                 case OP_PLUS:
-                        printf("addq %s, %s", regl, regr);
+                        printf("add %s, %s", regr, regl);
                         break;
                 case OP_MINUS:
-                        printf("subq %s, %s", regl, regr);
+                        printf("sub %s, %s", regr, regl);
                         break;
                 case OP_TIMES:
-                        printf("imulq %s, %s", regl, regr);
+                        printf("imul %s, %s", regr, regl);
                         break;
                 case OP_DIVISE:
-                        printf("idivq %s, %s", regl, regr);
+                        printf("idiv %s, %s", regr, regl);
                         break;
                 }
                 return regr;
@@ -939,14 +939,23 @@ compile_expr(Expr e, SContext *ctx)
                 while (ctx) {
                         if (!strcmp(e.var, ctx->name)) {
                                 char *reg = free_reg();
-                                printf("movq %d(%%esp), %s", ctx->num * 8, reg);
+                                printf("mov %s, [esp + %d]", reg, ctx->num * 8);
                                 return reg;
                         } ctx = ctx->next;
                 } return e.var;
         case LETIN: {
+                char label[64];
                 struct decllist *p = e.letin.decl;
                 while (p) {
-                        char *s = compile_decl(p->decl, ctx);
+                        char s[64];
+                        sprintf(label, "__letin_%d", ++ndecl);
+                        printf("jmp %s\n", label);
+                        sprintf(s, "__decl%d", ndecl);
+                        printf("%s:\n", s);
+                        compile_decl(p->decl, ctx);
+                        printf("%s:\n", label);
+                        ctx = add_sctx(ctx, s, ++nvar);
+                        printf("push %s\n", s);
                         p = p->next;
                 }
                 break;
@@ -958,19 +967,14 @@ compile_expr(Expr e, SContext *ctx)
 }
 
 char *
-compile_decl(Decl decl, SContext *ctx)
+compile_body(struct elist *body, SContext *ctx)
 {
         char *s;
-        struct decllist *p;
 
-        s = malloc(64);
-        p = decls;
-        sprintf(s, "__decl%d", ++ndecl);
-        while (p->next) p = p->next;
-        p->next = malloc(sizeof(struct decllist));
-        p = p->next;
-        p->next = NULL;
-        p->decl = decl;
+        while (body) {
+                s = compile_expr(body->expr, ctx);
+                body = body->next;
+        }
         return s;
 }
 
