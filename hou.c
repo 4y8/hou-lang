@@ -59,9 +59,7 @@ token(unsigned int type)
 {
         Token t;
 
-        t.type  = type;
-        t.linum = linum;
-        t.cpos  = cpos;
+        t = (Token){.type = type, .linum = linum, .cpos = cpos};
         return t;
 }
 
@@ -197,14 +195,12 @@ parse_expr()
                         break;
                 }
                 default:
-                        expr->type = VAR;
-                        expr->var = (toks - 1)->str;
+                        *expr = (Expr){.type = VAR, .var = (toks - 1)->str};
                         break;
                 }
                 break;
         case NUM:
-                expr->type = INT;
-                expr->num = toks->num;
+                *expr = (Expr){.type = INT, .num = toks->num};
                 ++toks;
                 break;
         case LET: {
@@ -256,10 +252,8 @@ binop(struct expr *left, struct expr *right, unsigned int op)
         struct expr *e;
 
         e = malloc(sizeof(struct expr));
-        e->type = BINOP;
-        e->binop.op = op;
-        e->binop.left = left;
-        e->binop.right = right;
+        *e = (Expr){.type = BINOP, .binop.op = op, .binop.left = left,
+                    .binop.right = right};
         return e;
 }
 
@@ -331,6 +325,20 @@ parse_top_level()
                              SYNTAX_ERROR);
         } else error("Unexpected token.", toks->linum, toks->cpos, SYNTAX_ERROR);
         return decl;
+}
+
+
+struct decllist *
+parse_program()
+{
+        struct decllist *decls;
+
+        decls = NULL;
+        while (toks->type != END) {
+                struct decllist *ndecls = malloc(sizeof(struct decllist));
+                *ndecls = (struct decllist){parse_top_level(), decls};
+        }
+        return decls;
 }
 
 struct ilist*
@@ -567,10 +575,9 @@ add_dummy_var(Type *t, struct elist *args, Context *ctx)
         args->next->expr.var = "@";
         args->next->expr.type = VAR;
         nctx = malloc(sizeof(Context));
-        nctx->sch.type = t;
-        nctx->sch.bind = NULL;
-        nctx->name = "@";
-        nctx->next = ctx;
+        *nctx = (Context){.sch = (Scheme){.type = t, .bind = NULL},
+                          .name = "@",
+                          .next = ctx};
         return nctx;
 }
 
@@ -1082,7 +1089,7 @@ main(int argc, char **argv)
 {
 
         printf("%s", prelude);
-        toks = lexer("let cons(a, b)->a id(a)->a in cons(id(6), 0)");
+        toks = lexer("let cons(a, b)->a in let id(a)->a in cons(id(6), 0)");
         nvar = -1;
         printf("mov rbx, %s\n", compile_expr(*parse_add(), NULL));
         printf("%s", conclusion);
