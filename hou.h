@@ -151,6 +151,7 @@ TypeReturn infer(struct expr, Context *);
 TypeReturn infer_args(struct elist *, Context *);
 TypeReturn infer_decl(struct decl, Context *);
 TypeReturn infer_body(struct elist *, Context *);
+Context *infer_decls(struct decllist *, Context *);
 
 Subst *unify(Type *, Type *);
 Subst *bind(unsigned int, Type *);

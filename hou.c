@@ -210,12 +210,12 @@ parse_expr()
                 ++toks;
                 while (toks->type != IN) {
                         lp->next = malloc(sizeof(struct decllist));
-                        lp->next->decl = parse_top_level(toks);
+                        lp->next->decl = parse_top_level();
                         lp = lp->next;
                 } ++toks;
                 lp->next = NULL;
                 expr->letin.decl = l.next;
-                expr->letin.expr = parse_body(toks);
+                expr->letin.expr = parse_body();
                 expr->type = LETIN;
                 break;
         }
@@ -264,7 +264,7 @@ parse_op(Expr * (*fun)(), unsigned int op0,
         Expr *expr;
         Expr *e;
 
-        expr = fun(toks);
+        expr = fun();
         e = malloc(sizeof(struct expr));
         e = expr;
         for (;;) {
@@ -300,6 +300,7 @@ parse_top_level()
                         struct elist *pt;
                         decl.fun_decl.name = (toks - 1)->str;
                         pt = &args;
+                        args.next = NULL;
                         ++toks;
                         while (toks->type != RPARENT) {
                                 pt->next = malloc(sizeof(struct elist));
@@ -316,7 +317,7 @@ parse_top_level()
                         decl.type = FUN_DECL;
                         decl.fun_decl.args = args.next;
                         decl.fun_decl.body = parse_body();
-                } else if ((toks)->type == EQUAL) {
+                } else if (toks->type == EQUAL) {
                         decl.var_decl.name = (toks - 1)->str;
                         ++toks;
                         decl.type = VAR_DECL;
@@ -327,18 +328,19 @@ parse_top_level()
         return decl;
 }
 
-
 struct decllist *
 parse_program()
 {
-        struct decllist *decls;
+        struct decllist *p;
+        struct decllist decls;
 
-        decls = NULL;
+        decls.next = NULL;
+        p = &decls;
         while (toks->type != END) {
-                struct decllist *ndecls = malloc(sizeof(struct decllist));
-                *ndecls = (struct decllist){parse_top_level(), decls};
-        }
-        return decls;
+                p->next = malloc(sizeof(struct decllist));
+                p->next->decl = parse_top_level();
+                p = p->next;
+        } return decls.next;
 }
 
 struct ilist*
@@ -625,17 +627,7 @@ infer(struct expr expr, Context *ctx)
                 break;
         }
         case LETIN: {
-                struct decllist *p = expr.letin.decl;
-                while (p) {
-                        Context *nctx = malloc(sizeof(struct decllist));
-                        TypeReturn dt = infer_decl(p->decl, ctx);
-                        nctx->name = decl_name(p->decl);
-                        nctx->sch = gen(dt.type);
-                        nctx->next = ctx;
-                        ctx = nctx;
-                        p = p->next;
-                }
-                tp = infer_body(expr.letin.expr, ctx);
+                tp = infer_body(expr.letin.expr, infer_decls(expr.letin.decl, ctx));
         }
         }
         return tp;
@@ -709,6 +701,20 @@ infer_body(struct elist *body, Context *ctx)
                 body = body->next;
         }
         return tp;
+}
+
+Context *
+infer_decls(struct decllist *decls, Context *ctx)
+{
+        while (decls) {
+                Context *nctx = malloc(sizeof(struct decllist));
+                TypeReturn dt = infer_decl(decls->decl, ctx);
+                nctx->name = decl_name(decls->decl);
+                nctx->sch = gen(dt.type);
+                nctx->next = ctx;
+                ctx = nctx;
+                decls = decls->next;
+        } return ctx;
 }
 
 void
@@ -921,7 +927,6 @@ free_reg(char *reg)
 }
 
 int ndecl = -1;
-struct decllist *decls = NULL;
 
 SContext *
 add_sctx(SContext *ctx, char *name, int num)
@@ -1075,6 +1080,18 @@ compile_bss()
         }
 }
 
+void
+compile_decls(struct decllist *decls)
+{
+
+        while (decls) {
+                nvar = -1;
+                for (int i = 0; i < NREG; ++i) used_registers[i] = 0;
+                compile_decl(decls->decl, NULL, decl_name(decls->decl));
+                decls = decls->next;
+        }
+}
+
 char *prelude =
         "global _start\n"
         "section .text\n"
@@ -1084,15 +1101,33 @@ char *conclusion =
         "mov rax, 1\n"
         "int 80h\n";
 
+void
+program(char *s)
+{
+        struct decllist *decl;
+
+        toks = lexer(s);
+        decl = parse_program();
+        infer_decls(decl, NULL);
+        printf("%s", prelude);
+        compile_decls(decl);
+        printf("call _main\n"
+               "mov rbx, rax\n");
+        printf("%s", conclusion);
+        compile_bss();
+}
+
 int
 main(int argc, char **argv)
 {
 
-        printf("%s", prelude);
-        toks = lexer("let cons(a, b)->a in let id(a)->a in cons(id(6), 0)");
-        nvar = -1;
-        printf("mov rbx, %s\n", compile_expr(*parse_add(), NULL));
-        printf("%s", conclusion);
-        compile_bss();
+        //printf("%s", prelude);
+        //toks = lexer("let cons(a, b)->a in let id(a)->a in cons(id(6), 0)");
+        //nvar = -1;
+        //printf("mov rbx, %s\n", compile_expr(*parse_add(), NULL));
+        //printf("%s", conclusion);
+        //compile_bss();
+        program("id(a)->a\n"
+                "main()->id(2)\n");
         return 0;
 }
