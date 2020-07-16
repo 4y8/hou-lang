@@ -508,8 +508,8 @@ unify(Type *t1, Type *t2)
         else if (t1->type == TVAR) s = bind(t1->var, t2);
         else if (t2->type == TVAR) s = bind(t2->var, t1);
         else if (t1->type == TFUN && t2->type == TFUN)
-                s = compose_subst(unify(t1->fun.right, t2->fun.right),
-                              unify(t1->fun.left, t2->fun.left));
+                s = compose_subst(unify(t1->fun.left, t2->fun.left),
+                                  unify(t1->fun.right, t2->fun.right));
         else error("Can't unfiy types", 0, 0, TYPE_ERROR);
 
         return s;
@@ -571,11 +571,16 @@ Context *
 add_dummy_var(Type *t, struct elist *args, Context *ctx)
 {
         Context *nctx;
+        struct elist *p;
 
-        while (args->next) args = args->next;
-        args->next = malloc(sizeof(struct elist));
-        args->next->expr.var = "@";
-        args->next->expr.type = VAR;
+        if (args) {
+                while (args->next) args = args->next;
+                p = args->next = malloc(sizeof(struct elist));
+        } else
+                p = args = malloc(sizeof(struct elist));
+        p->expr.var = "@";
+        p->expr.type = VAR;
+        p->next = NULL;
         nctx = malloc(sizeof(Context));
         *nctx = (Context){.sch = (Scheme){.type = t, .bind = NULL},
                           .name = "@",
@@ -622,8 +627,10 @@ infer(struct expr expr, Context *ctx)
                 int save_nvar = nvar + 1;
                 Context *nctx = add_dummy_var(tvar(++nvar), expr.fun_call.args, ctx);
                 TypeReturn at = infer_args(expr.fun_call.args, nctx);
-                tp.type = app_subst(tvar(save_nvar), unify(at.type, ft.type));
-                tp.subst = compose_subst(at.subst, ft.subst);
+                Subst *s = unify(at.type, ft.type);
+                s = compose_subst(ft.subst, s);
+                tp.type = app_subst(tvar(save_nvar), s);
+                tp.subst = s;
                 break;
         }
         case LETIN: {
@@ -680,7 +687,7 @@ infer_decl(struct decl decl, Context *ctx)
                 p = decl.fun_decl.args;
                 Context *nctx = add_dummy_var(bt.type, decl.fun_decl.args, ctx);
                 TypeReturn at = infer_args(decl.fun_decl.args, nctx);
-                tp.type = at.type;
+                tp.type = app_subst(at.type, bt.subst);
                 break;
         }
         }
@@ -1128,6 +1135,6 @@ main(int argc, char **argv)
         //printf("%s", conclusion);
         //compile_bss();
         program("id(a)->a\n"
-                "main()->id(2)\n");
+                "main(a)-> id(2)");
         return 0;
 }
