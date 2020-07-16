@@ -859,10 +859,9 @@ print_type(Type t)
         }
 }
 
-#define NREG 8
+#define NREG 7
 
-int used_registers[8] = {
-        0,
+int used_registers[NREG] = {
         0,
         0,
         0,
@@ -873,7 +872,6 @@ int used_registers[8] = {
 };
 
 char *registers[] = {
-        "rax",
         "rcx",
         "rdx",
         "rsi",
@@ -992,10 +990,19 @@ compile_expr(Expr e, SContext *ctx)
                 } char *reg = compile_body(e.letin.expr, ctx);
                 printf("sub rsp, %d\n", length << 3);
                 return reg;
-                break;
         }
-        case FUN_CALL:
-                break;
+        case FUN_CALL: {
+                char *fun = compile_expr(*e.fun_call.fun, ctx);
+                int length = 0;
+                struct elist *p = e.fun_call.args;
+                while (p) {
+                        printf("push %s\n", compile_expr(p->expr, ctx));
+                        p = p->next;
+                        ++length;
+                } printf("call %s\n", fun);
+                printf("sub rsp, %d\n", length << 3);
+                return "rax";
+        }
         }
         return "";
 }
@@ -1008,8 +1015,7 @@ compile_body(struct elist *body, SContext *ctx)
         while (body) {
                 s = compile_expr(body->expr, ctx);
                 body = body->next;
-        }
-        return s;
+        } return s;
 }
 
 void
@@ -1030,12 +1036,14 @@ compile_decl(Decl decl, SContext *ctx, char *name)
                 while (p) {
                         ctx = add_sctx(ctx, p->expr.var, ++nvar);
                         p = p->next;
-                }
+                }  ++nvar;
                 char *reg = compile_body(decl.fun_decl.body, ctx);
                 printf("mov rax, %s\n"
                        "ret\n"
                        "%s:\n", reg, label);
+                printf("mov QWORD [%s], QWORD _%s\n", name, name);
                 free_reg(reg);
+                --nvar;
         }
 }
 
@@ -1064,7 +1072,7 @@ main(int argc, char **argv)
 {
 
         printf("%s", prelude);
-        toks = lexer("let id(a)->a in 2");
+        toks = lexer("let id(a)->a in id(3)");
         printf("mov rbx, %s\n", compile_expr(*parse_add(), NULL));
         printf("%s", conclusion);
         compile_bss();
