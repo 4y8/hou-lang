@@ -877,8 +877,23 @@ char *registers[] = {
         "r11"
 };
 
+BSSTable *bss_table;
+
+void
+add_bss(char *name, int size)
+{
+        BSSTable *nbss_table;
+
+        nbss_table = malloc(sizeof(BSSTable));
+        nbss_table->name = malloc(64);
+        strncpy(nbss_table->name, name, 64);
+        nbss_table->size = size;
+        nbss_table->next = bss_table;
+        bss_table = nbss_table;
+}
+
 char *
-free_reg()
+alloc_reg()
 {
 
         for (int i = 0; i < NREG; ++i)
@@ -910,7 +925,7 @@ compile_expr(Expr e, SContext *ctx)
 
         switch (e.type) {
         case INT: {
-                char *reg = free_reg();
+                char *reg = alloc_reg();
                 printf("mov %s, %d\n", reg, e.num);
                 return reg;
                 break;
@@ -938,13 +953,13 @@ compile_expr(Expr e, SContext *ctx)
         case VAR:
                 while (ctx) {
                         if (!strcmp(e.var, ctx->name)) {
-                                char *reg = free_reg();
+                                char *reg = alloc_reg();
                                 printf("mov %s, [rsp + %d]\n" "mov %s, [%s]\n",
                                        reg, (nvar - ctx->num) * 8, reg, reg);
                                 return reg;
                         } ctx = ctx->next;
                 }
-                char *reg = free_reg();
+                char *reg = alloc_reg();
                 printf("mov %s, [%s]\n", reg, e.var);
                 return reg;
                 break;
@@ -961,7 +976,7 @@ compile_expr(Expr e, SContext *ctx)
                         ++length;
                 }
                 char *reg = compile_body(e.letin.expr, ctx);
-                for (int i = 0; i < length; ++i) printf("pop rax\n");
+                printf("sub rsp, %d\n", length << 3);
                 return reg;
                 break;
         }
@@ -989,14 +1004,22 @@ compile_decl(Decl decl, SContext *ctx, char *name)
 
         if (decl.type == VAR_DECL) {
                 char *reg = compile_body(decl.var_decl.body, ctx);
-                ++ndecl;
-                printf("mov [%s], %s\n"
-                       "jmp __decl%d\n"
-                       "%s: resq 1\n"
-                       "__decl%d:\n",
-                       name, reg, ndecl, name, ndecl);
+                printf("mov [%s], %s\n", name, reg);
+                add_bss(name, 8);
         }
 }
+
+void
+compile_bss()
+{
+
+        printf("section .bss\n");
+        while (bss_table) {
+                printf("%s: resb %d\n", bss_table->name, bss_table->size);
+                bss_table = bss_table->next;
+        }
+}
+
 char *prelude =
         "global _start\n"
         "section .text\n"
@@ -1012,8 +1035,9 @@ main(int argc, char **argv)
 {
 
         printf("%s", prelude);
-        toks = lexer("let a = 2 in a + 2");
+        toks = lexer("let a = 2 b = 2 in a + b");
         compile_expr(*parse_add(), NULL);
         printf("%s", conclusion);
+        compile_bss();
         return 0;
 }
