@@ -939,25 +939,25 @@ compile_expr(Expr e, SContext *ctx)
                 while (ctx) {
                         if (!strcmp(e.var, ctx->name)) {
                                 char *reg = free_reg();
-                                printf("mov %s, [esp + %d]", reg, ctx->num * 8);
+                                printf("mov %s, [esp + %d]\n" "mov %s, [%s]\n",
+                                       reg, (nvar - ctx->num) * 8, reg, reg);
                                 return reg;
                         } ctx = ctx->next;
-                } return e.var;
+                }
+                char *reg = free_reg();
+                printf("mov %s, [%s]\n", reg, e.var);
+                return reg;
         case LETIN: {
-                char label[64];
                 struct decllist *p = e.letin.decl;
                 while (p) {
                         char s[64];
-                        sprintf(label, "__letin_%d", ++ndecl);
-                        printf("jmp %s\n", label);
-                        sprintf(s, "__decl%d", ndecl);
-                        printf("%s:\n", s);
-                        compile_decl(p->decl, ctx);
-                        printf("%s:\n", label);
-                        ctx = add_sctx(ctx, s, ++nvar);
+                        sprintf(s, "__decl%d", ++ndecl);
+                        compile_decl(p->decl, ctx, s);
+                        ctx = add_sctx(ctx, decl_name(p->decl), ++nvar);
                         printf("push %s\n", s);
                         p = p->next;
                 }
+                compile_body(e.letin.expr, ctx);
                 break;
         }
         case FUN_CALL:
@@ -978,11 +978,26 @@ compile_body(struct elist *body, SContext *ctx)
         return s;
 }
 
+void
+compile_decl(Decl decl, SContext *ctx, char *name)
+{
+
+        if (decl.type == VAR_DECL) {
+                char *reg = compile_body(decl.var_decl.body, ctx);
+                ++ndecl;
+                printf("mov [%s], %s\n"
+                       "jmp __decl%d\n"
+                       "%s: resq 1\n"
+                       "__decl%d:\n",
+                       name, reg, ndecl, name, ndecl);
+        }
+}
+
 int
 main(int argc, char **argv)
 {
 
-        toks = lexer("1 + 2");
+        toks = lexer("let a = 2 in a + 2");
         compile_expr(*parse_add(), NULL);
         return 0;
 }

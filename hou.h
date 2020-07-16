@@ -150,7 +150,7 @@ Subst *bind(unsigned int, Type *);
 
 char *compile_expr(Expr, SContext *);
 char *compile_body(struct elist *, SContext *);
-void *compile_decl(Decl, SContext *);
+void compile_decl(Decl, SContext *, char *);
 
 
 void print_token(Token);
