@@ -866,7 +866,7 @@ int used_registers[NREG] = {
         0
 };
 
-char *registers[] = {
+char *registers[NREG] = {
         "rcx",
         "rdx",
         "rsi",
@@ -983,19 +983,32 @@ compile_expr(Expr e, SContext *ctx)
                         p = p->next;
                         ++length;
                 } char *reg = compile_body(e.letin.expr, ctx);
-                printf("sub rsp, %d\n", length << 3);
+                printf("add rsp, %d\n", length << 3);
                 return reg;
         }
         case FUN_CALL: {
                 char *fun = compile_expr(*e.fun_call.fun, ctx);
                 int length = 0;
+                /* Saves registers. */
+                int local_used[NREG];
+                memcpy(local_used, used_registers, NREG * sizeof(int));
+                for (int i = 0; i < NREG; ++i)
+                        if (local_used[i]) {
+                                printf("push %s\n", registers[i]);
+                                ++nvar;
+                        }
                 struct elist *p = e.fun_call.args;
                 while (p) {
                         printf("push %s\n", compile_expr(p->expr, ctx));
                         p = p->next;
                         ++length;
                 } printf("call %s\n", fun);
-                printf("sub rsp, %d\n", length << 3);
+                printf("add rsp, %d\n", length << 3);
+                for (int i = NREG - 1; i >= 0; --i)
+                        if (local_used[i]) {
+                                printf("pop %s\n", registers[i]);
+                                --nvar;
+                        }
                 return "rax";
         }
         }
@@ -1024,12 +1037,14 @@ compile_decl(Decl decl, SContext *ctx, char *name)
                 free_reg(reg);
         } else {
                 char label[64];
+                int length = 1;
                 struct elist *p = decl.fun_decl.args;
                 sprintf(label, "__decl%d", ++ndecl);
                 printf("jmp %s\n"
                        "_%s:\n", label, name);
                 while (p) {
                         ctx = add_sctx(ctx, p->expr.var, ++nvar);
+                        ++length;
                         p = p->next;
                 }  ++nvar;
                 char *reg = compile_body(decl.fun_decl.body, ctx);
@@ -1038,7 +1053,7 @@ compile_decl(Decl decl, SContext *ctx, char *name)
                        "%s:\n", reg, label);
                 printf("mov QWORD [%s], QWORD _%s\n", name, name);
                 free_reg(reg);
-                --nvar;
+                nvar -= length;
         }
 }
 
@@ -1067,7 +1082,8 @@ main(int argc, char **argv)
 {
 
         printf("%s", prelude);
-        toks = lexer("let cons(a, b)->a in cons(3, 0)");
+        toks = lexer("let cons(a, b)->a id(a)->a in cons(id(6), 0)");
+        nvar = -1;
         printf("mov rbx, %s\n", compile_expr(*parse_add(), NULL));
         printf("%s", conclusion);
         compile_bss();
