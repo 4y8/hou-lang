@@ -144,6 +144,7 @@ Expr *parse_add();
 Expr *parse_mul();
 Decl parse_top_level();
 struct elist *parse_body();
+struct decllist *parse_program();
 
 Type *tfun(Type *, Type *);
 TypeReturn infer(struct expr, Context *);
@@ -157,7 +158,6 @@ Subst *bind(unsigned int, Type *);
 char *compile_expr(Expr, SContext *);
 char *compile_body(struct elist *, SContext *);
 void compile_decl(Decl, SContext *, char *);
-
 
 void print_token(Token);
 void assert(Token);

@@ -50,11 +50,12 @@ error(char *msg, int linum, int cpos, Error err_code)
         printf("%s", err_header);
         for (int i = 0; i < 77 - header_size; i++) printf("-");
         free(err_header);
+        printf("\n\n\033[39m\033[1m%d:%d: %s\n", linum, cpos, msg);
         exit(1);
 }
 
 Token
-make_token(unsigned int type)
+token(unsigned int type)
 {
         Token t;
 
@@ -65,21 +66,21 @@ make_token(unsigned int type)
 }
 
 Token
-make_token_str(char *str)
+token_str(char *str)
 {
         Token t;
 
-        t     = make_token(IDE);
+        t     = token(IDE);
         t.str = str;
         return t;
 }
 
 Token
-make_token_num(int num)
+token_num(int num)
 {
         Token t;
 
-        t     = make_token(NUM);
+        t     = token(NUM);
         t.num = num;
         return t;
 
@@ -103,13 +104,12 @@ lexer(char *s)
                         while (isalpha(*(++s))) {
                                 ++i;
                                 ++cpos;
-                        }
-                        str  = malloc((i + 1) * sizeof(char));
+                        } str  = malloc((i + 1) * sizeof(char));
                         strncpy(str, s - i, i);
                         i = char_to_token(str);
                         if (i == -1)
-                                *(tokens + (++tpos)) = make_token_str(str);
-                        else *(tokens + (++tpos)) = make_token(i);
+                                *(tokens + (++tpos)) = token_str(str);
+                        else *(tokens + (++tpos)) = token(i);
                         --s;
                         --cpos;
                 } else if (isdigit(*s)) {
@@ -119,39 +119,37 @@ lexer(char *s)
                         while (isdigit(*(++s))) {
                                 ++i;
                                 ++cpos;
-                        }
-                        str  = malloc((i + 1) * sizeof(char));
+                        } str  = malloc((i + 1) * sizeof(char));
                         strncpy(str, s - i, i);
-                        *(tokens + (++tpos)) = make_token_num(atoi(str));
+                        *(tokens + (++tpos)) = token_num(atoi(str));
                         --s;
                         --cpos;
                 } else {
                         switch (*s) {
-                        case ',': *(tokens + (++tpos)) = make_token(COL);     break;
-                        case '+': *(tokens + (++tpos)) = make_token(PLUS);    break;
-                        case '*': *(tokens + (++tpos)) = make_token(TIMES);   break;
-                        case '=': *(tokens + (++tpos)) = make_token(EQUAL);   break;
-                        case '/': *(tokens + (++tpos)) = make_token(DIVISE);  break;
-                        case '(': *(tokens + (++tpos)) = make_token(LPARENT); break;
-                        case ')': *(tokens + (++tpos)) = make_token(RPARENT); break;
-                        case ';': *(tokens + (++tpos)) = make_token(SEMICOL); break;
+                        case ',': *(tokens + (++tpos)) = token(COL);     break;
+                        case '+': *(tokens + (++tpos)) = token(PLUS);    break;
+                        case '*': *(tokens + (++tpos)) = token(TIMES);   break;
+                        case '=': *(tokens + (++tpos)) = token(EQUAL);   break;
+                        case '/': *(tokens + (++tpos)) = token(DIVISE);  break;
+                        case '(': *(tokens + (++tpos)) = token(LPARENT); break;
+                        case ')': *(tokens + (++tpos)) = token(RPARENT); break;
+                        case ';': *(tokens + (++tpos)) = token(SEMICOL); break;
                         case ' ': case '\t': break;
                         case '\n': ++linum; cpos = 0; break;
                         case '-':
                                 if (*(++s) == '>') {
-                                        *(tokens + (++tpos)) = make_token(ARR);
+                                        *(tokens + (++tpos)) = token(ARR);
                                         ++cpos;
                                 } else {
-                                        *(tokens + (++tpos)) = make_token(MINUS);
+                                        *(tokens + (++tpos)) = token(MINUS);
                                 } break;
                         default : error("Unxecpected charachter", linum, cpos,
                                         UNEXPECTED_CHAR);
-                        }
-                        ++cpos;
+                        } ++cpos;
                 }
 
         } while (*(++s) != '\0');
-        *(tokens + tpos + 1) = make_token(END);
+        *(tokens + tpos + 1) = token(END);
         return tokens;
 }
 
@@ -165,17 +163,17 @@ assert(Token token)
                 error("Unexpected token", toks->linum, toks->cpos,
                       SYNTAX_ERROR);
         ++toks;
-}                   
+}
 
 Expr *
 parse_expr()
 {
         Expr *expr;
 
-        expr = malloc(sizeof(struct expr));
-        expr->linum = toks->linum;
-        expr->cpos  = toks->cpos;
-        expr->abspos  = toks->abspos;
+        expr         = malloc(sizeof(struct expr));
+        expr->linum  = toks->linum;
+        expr->cpos   = toks->cpos;
+        expr->abspos = toks->abspos;
         switch (toks->type) {
         case IDE:
                 switch ((++toks)->type) {
@@ -185,14 +183,13 @@ parse_expr()
                         expr->fun_call.fun = malloc(sizeof(Expr));
                         expr->fun_call.fun->type = VAR;
                         expr->fun_call.fun->var = (toks - 1)->str;
-                        Token *tp;
                         pt = &args;
                         ++toks;
                         while (toks->type != RPARENT) {
                                 pt->next = malloc(sizeof(struct elist));
                                 pt->next->expr = *parse_expr();
                                 pt = pt->next;
-                                if (toks->type != RPARENT) assert(make_token(COL));
+                                if (toks->type != RPARENT) assert(token(COL));
                         } pt->next = NULL;
                         expr->type = FUN_CALL;
                         ++toks;
@@ -277,15 +274,11 @@ parse_op(Expr * (*fun)(), unsigned int op0,
         e = malloc(sizeof(struct expr));
         e = expr;
         for (;;) {
-                if (toks->type == op0) {
-                        expr = fun(++toks);
-                        e = binop(e, expr, op1);
-                } else if (toks->type == op2) {
-                        expr = fun(toks);
-                        e = binop(e, expr, op3);
-                } else {
-                        return e;
-                }
+                if (toks->type == op0)
+                        e = binop(e, fun(++toks), op1);
+                else if (toks->type == op2)
+                        e = binop(e, fun(++toks), op3);
+                else return e;
         }
 
 }
@@ -318,12 +311,14 @@ parse_top_level()
                                 pt->next = malloc(sizeof(struct elist));
                                 pt->next->expr = *parse_expr();
                                 if (pt->next->expr.type != VAR)
-                                        error("Unexpected token", (toks - 1)->linum, (toks - 1)->cpos, SYNTAX_ERROR);
+                                        error("Unexpected token",
+                                              (toks - 1)->linum, (toks - 1)->cpos,
+                                              SYNTAX_ERROR);
                                 pt = pt->next;
                                 if (toks->type != RPARENT)
-                                        assert(make_token(COL));
+                                        assert(token(COL));
                         } ++toks;
-                        assert(make_token(ARR));
+                        assert(token(ARR));
                         decl.type = FUN_DECL;
                         decl.fun_decl.args = args.next;
                         decl.fun_decl.body = parse_body();
@@ -1072,7 +1067,7 @@ main(int argc, char **argv)
 {
 
         printf("%s", prelude);
-        toks = lexer("let id(a)->a in id(3)");
+        toks = lexer("let cons(a, b)->a in cons(3, 0)");
         printf("mov rbx, %s\n", compile_expr(*parse_add(), NULL));
         printf("%s", conclusion);
         compile_bss();
