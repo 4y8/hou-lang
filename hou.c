@@ -588,6 +588,14 @@ add_dummy_var(Type *t, struct elist *args, Context *ctx)
         return nctx;
 }
 
+struct elist *
+clean_dummy_var(struct elist *args)
+{
+
+        if (args->expr.type == VAR && !strcmp(args->expr.var, "@")) return NULL;
+        return args;
+}
+
 char *
 decl_name(Decl decl)
 {
@@ -1118,8 +1126,7 @@ program(char *s)
         infer_decls(decl, NULL);
         printf("%s", prelude);
         compile_decls(decl);
-        printf("call _main\n"
-               "mov rbx, rax\n");
+        printf("mov rbx, rax\n");
         printf("%s", conclusion);
         compile_bss();
 }
@@ -1135,6 +1142,6 @@ main(int argc, char **argv)
         //printf("%s", conclusion);
         //compile_bss();
         program("id(a)->a\n"
-                "main(a)-> id(2)");
+                "main = id(2)");
         return 0;
 }
