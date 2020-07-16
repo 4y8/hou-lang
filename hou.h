@@ -126,6 +126,12 @@ typedef struct sctx_elem {
         struct sctx_elem *next;
 } SContext;
 
+typedef struct bss_elem {
+        char *name;
+        int size;
+        struct bss_elem *next;
+} BSSTable;
+
 typedef enum { TYPE_ERROR, UNEXPECTED_CHAR, SYNTAX_ERROR } Error;
 
 Token make_token(unsigned int);

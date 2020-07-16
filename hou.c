@@ -920,16 +920,16 @@ compile_expr(Expr e, SContext *ctx)
                 char *regr = compile_expr(*e.binop.right, ctx);
                 switch (e.binop.op) {
                 case OP_PLUS:
-                        printf("add %s, %s", regr, regl);
+                        printf("add %s, %s\n", regr, regl);
                         break;
                 case OP_MINUS:
-                        printf("sub %s, %s", regr, regl);
+                        printf("sub %s, %s\n", regr, regl);
                         break;
                 case OP_TIMES:
-                        printf("imul %s, %s", regr, regl);
+                        printf("imul %s, %s\n", regr, regl);
                         break;
                 case OP_DIVISE:
-                        printf("idiv %s, %s", regr, regl);
+                        printf("idiv %s, %s\n", regr, regl);
                         break;
                 }
                 return regr;
@@ -939,7 +939,7 @@ compile_expr(Expr e, SContext *ctx)
                 while (ctx) {
                         if (!strcmp(e.var, ctx->name)) {
                                 char *reg = free_reg();
-                                printf("mov %s, [esp + %d]\n" "mov %s, [%s]\n",
+                                printf("mov %s, [rsp + %d]\n" "mov %s, [%s]\n",
                                        reg, (nvar - ctx->num) * 8, reg, reg);
                                 return reg;
                         } ctx = ctx->next;
@@ -947,8 +947,10 @@ compile_expr(Expr e, SContext *ctx)
                 char *reg = free_reg();
                 printf("mov %s, [%s]\n", reg, e.var);
                 return reg;
+                break;
         case LETIN: {
                 struct decllist *p = e.letin.decl;
+                int length = 0;
                 while (p) {
                         char s[64];
                         sprintf(s, "__decl%d", ++ndecl);
@@ -956,8 +958,11 @@ compile_expr(Expr e, SContext *ctx)
                         ctx = add_sctx(ctx, decl_name(p->decl), ++nvar);
                         printf("push %s\n", s);
                         p = p->next;
+                        ++length;
                 }
-                compile_body(e.letin.expr, ctx);
+                char *reg = compile_body(e.letin.expr, ctx);
+                for (int i = 0; i < length; ++i) printf("pop rax\n");
+                return reg;
                 break;
         }
         case FUN_CALL:
@@ -992,12 +997,23 @@ compile_decl(Decl decl, SContext *ctx, char *name)
                        name, reg, ndecl, name, ndecl);
         }
 }
+char *prelude =
+        "global _start\n"
+        "section .text\n"
+        "_start:\n";
+
+char *conclusion =
+        "mov rbx, 0\n"
+        "mov rax, 1\n"
+        "int 80h\n";
 
 int
 main(int argc, char **argv)
 {
 
+        printf("%s", prelude);
         toks = lexer("let a = 2 in a + 2");
         compile_expr(*parse_add(), NULL);
+        printf("%s", conclusion);
         return 0;
 }
