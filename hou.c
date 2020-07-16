@@ -182,7 +182,9 @@ parse_expr()
                 case LPARENT: {
                         struct elist args;
                         struct elist *pt;
-                        expr->fun_call.name = (toks - 1)->str;
+                        expr->fun_call.fun = malloc(sizeof(Expr));
+                        expr->fun_call.fun->type = VAR;
+                        expr->fun_call.fun->var = (toks - 1)->str;
                         Token *tp;
                         pt = &args;
                         ++toks;
@@ -610,13 +612,14 @@ infer(struct expr expr, Context *ctx)
                 break;
         }
         case FUN_CALL: {
-                Type *t = inst(find_ctx(expr.fun_call.name, ctx));
+                TypeReturn ft = infer(*expr.fun_call.fun, ctx);
+                app_subst_ctx(ft.subst, ctx);
                 TypeReturn args = infer_args(expr.fun_call.args, ctx);
                 int save_nvar = nvar + 1;
                 Context *nctx = add_dummy_var(tvar(++nvar), expr.fun_call.args, ctx);
                 TypeReturn at = infer_args(expr.fun_call.args, nctx);
-                tp.type = app_subst(tvar(save_nvar), unify(at.type, t));
-                tp.subst = at.subst;
+                tp.type = app_subst(tvar(save_nvar), unify(at.type, ft.type));
+                tp.subst = compose_subst(at.subst, ft.subst);
                 break;
         }
         case LETIN: {
@@ -792,7 +795,10 @@ print_expr(struct expr expr, int tab)
                 printf("number: %d\n", expr.num);
                 break;
         case FUN_CALL:
-                printf("function call: %s\n", expr.fun_call.name);
+                printf("function call:\n");
+                print_expr(*expr.fun_call.fun, tab + 2);
+                print_tab(tab);
+                printf("args:\n");
                 print_elist(*expr.fun_call.args, tab + 2);
                 break;
         case VAR:
@@ -892,16 +898,26 @@ add_bss(char *name, int size)
         bss_table = nbss_table;
 }
 
-char *
+int
 alloc_reg()
 {
 
         for (int i = 0; i < NREG; ++i)
                 if (!used_registers[i]) {
                         used_registers[i] = 1;
-                        return registers[i];
+                        return i;
                 }
         exit(1);
+}
+
+void
+free_reg(char *reg)
+{
+        for (int i = 0; i < NREG; ++i)
+                if (!strcmp(registers[i], reg)) {
+                        used_registers[i] = 0;
+                        return;
+                }
 }
 
 int ndecl = -1;
@@ -925,9 +941,9 @@ compile_expr(Expr e, SContext *ctx)
 
         switch (e.type) {
         case INT: {
-                char *reg = alloc_reg();
-                printf("mov %s, %d\n", reg, e.num);
-                return reg;
+                int reg = alloc_reg();
+                printf("mov %s, %d\n", registers[reg], e.num);
+                return registers[reg];
                 break;
         }
         case BINOP: {
@@ -946,22 +962,21 @@ compile_expr(Expr e, SContext *ctx)
                 case OP_DIVISE:
                         printf("idiv %s, %s\n", regr, regl);
                         break;
-                }
+                } free_reg(regl);
                 return regr;
                 break;
         }
         case VAR:
                 while (ctx) {
                         if (!strcmp(e.var, ctx->name)) {
-                                char *reg = alloc_reg();
-                                printf("mov %s, [rsp + %d]\n" "mov %s, [%s]\n",
-                                       reg, (nvar - ctx->num) * 8, reg, reg);
-                                return reg;
+                                int reg = alloc_reg();
+                                printf("mov %s, [rsp + %d]\n",
+                                       registers[reg], (nvar - ctx->num) * 8);
+                                return registers[reg];
                         } ctx = ctx->next;
-                }
-                char *reg = alloc_reg();
-                printf("mov %s, [%s]\n", reg, e.var);
-                return reg;
+                } int reg = alloc_reg();
+                printf("mov %s, [%s]\n", registers[reg], e.var);
+                return registers[reg];
                 break;
         case LETIN: {
                 struct decllist *p = e.letin.decl;
@@ -971,11 +986,10 @@ compile_expr(Expr e, SContext *ctx)
                         sprintf(s, "__decl%d", ++ndecl);
                         compile_decl(p->decl, ctx, s);
                         ctx = add_sctx(ctx, decl_name(p->decl), ++nvar);
-                        printf("push %s\n", s);
+                        printf("push QWORD [%s]\n", s);
                         p = p->next;
                         ++length;
-                }
-                char *reg = compile_body(e.letin.expr, ctx);
+                } char *reg = compile_body(e.letin.expr, ctx);
                 printf("sub rsp, %d\n", length << 3);
                 return reg;
                 break;
@@ -983,7 +997,7 @@ compile_expr(Expr e, SContext *ctx)
         case FUN_CALL:
                 break;
         }
-        exit(1);
+        return "";
 }
 
 char *
@@ -1002,10 +1016,26 @@ void
 compile_decl(Decl decl, SContext *ctx, char *name)
 {
 
+        add_bss(name, 8);
         if (decl.type == VAR_DECL) {
                 char *reg = compile_body(decl.var_decl.body, ctx);
                 printf("mov [%s], %s\n", name, reg);
-                add_bss(name, 8);
+                free_reg(reg);
+        } else {
+                char label[64];
+                struct elist *p = decl.fun_decl.args;
+                sprintf(label, "__decl%d", ++ndecl);
+                printf("jmp %s\n"
+                       "_%s:\n", label, name);
+                while (p) {
+                        ctx = add_sctx(ctx, p->expr.var, ++nvar);
+                        p = p->next;
+                }
+                char *reg = compile_body(decl.fun_decl.body, ctx);
+                printf("mov rax, %s\n"
+                       "ret\n"
+                       "%s:\n", reg, label);
+                free_reg(reg);
         }
 }
 
@@ -1026,7 +1056,6 @@ char *prelude =
         "_start:\n";
 
 char *conclusion =
-        "mov rbx, 0\n"
         "mov rax, 1\n"
         "int 80h\n";
 
@@ -1035,8 +1064,8 @@ main(int argc, char **argv)
 {
 
         printf("%s", prelude);
-        toks = lexer("let a = 2 b = 2 in a + b");
-        compile_expr(*parse_add(), NULL);
+        toks = lexer("let id(a)->a in 2");
+        printf("mov rbx, %s\n", compile_expr(*parse_add(), NULL));
         printf("%s", conclusion);
         compile_bss();
         return 0;

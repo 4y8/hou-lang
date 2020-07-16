@@ -25,7 +25,7 @@ struct expr {
                         struct elist *expr;
                 } letin;
                 struct {
-                        char *name;
+                        struct expr *fun;
                         struct elist *args;
                 } fun_call;
                 struct {
