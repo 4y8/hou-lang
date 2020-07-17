@@ -567,25 +567,17 @@ gen(Type *t)
         return sch;
 }
 
-Context *
-add_dummy_var(Type *t, struct elist *args, Context *ctx)
+Type *
+add_tfun(Type *t1, Type *t2)
 {
-        Context *nctx;
-        struct elist *p;
+        Type *p;
 
-        if (args) {
-                while (args->next) args = args->next;
-                p = args->next = malloc(sizeof(struct elist));
-        } else
-                p = args = malloc(sizeof(struct elist));
-        p->expr.var = "@";
-        p->expr.type = VAR;
-        p->next = NULL;
-        nctx = malloc(sizeof(Context));
-        *nctx = (Context){.sch = (Scheme){.type = t, .bind = NULL},
-                          .name = "@",
-                          .next = ctx};
-        return nctx;
+        p = t1;
+        if (p->type == TFUN) {
+                while (p->fun.right->type == TFUN) p = p->fun.right;
+                p->fun.right = tfun(p->fun.right, t2);
+                return t1;
+        } else return tfun(t1, t2);
 }
 
 struct elist *
@@ -632,9 +624,9 @@ infer(struct expr expr, Context *ctx)
                 TypeReturn ft = infer(*expr.fun_call.fun, ctx);
                 app_subst_ctx(ft.subst, ctx);
                 TypeReturn args = infer_args(expr.fun_call.args, ctx);
+                TypeReturn at = infer_args(expr.fun_call.args, ctx);
                 int save_nvar = nvar + 1;
-                Context *nctx = add_dummy_var(tvar(++nvar), expr.fun_call.args, ctx);
-                TypeReturn at = infer_args(expr.fun_call.args, nctx);
+                at.type = add_tfun(at.type, tvar(++nvar));
                 Subst *s = unify(at.type, ft.type);
                 s = compose_subst(ft.subst, s);
                 tp.type = app_subst(tvar(save_nvar), s);
@@ -693,8 +685,8 @@ infer_decl(struct decl decl, Context *ctx)
                 app_subst_ctx(bt.subst, ctx);
                 tp.subst = bt.subst;
                 p = decl.fun_decl.args;
-                Context *nctx = add_dummy_var(bt.type, decl.fun_decl.args, ctx);
-                TypeReturn at = infer_args(decl.fun_decl.args, nctx);
+                TypeReturn at = infer_args(decl.fun_decl.args, ctx);
+                at.type = add_tfun(at.type, bt.type);
                 tp.type = app_subst(at.type, bt.subst);
                 break;
         }
@@ -1135,12 +1127,6 @@ int
 main(int argc, char **argv)
 {
 
-        //printf("%s", prelude);
-        //toks = lexer("let cons(a, b)->a in let id(a)->a in cons(id(6), 0)");
-        //nvar = -1;
-        //printf("mov rbx, %s\n", compile_expr(*parse_add(), NULL));
-        //printf("%s", conclusion);
-        //compile_bss();
         program("id(a)->a\n"
                 "main = id(2)");
         return 0;
