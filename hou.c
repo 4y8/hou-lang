@@ -84,16 +84,14 @@ token_num(int num)
 
 }
 
-Token*
+Token
 lexer(char *s)
 {
-        Token *tokens;
+        Token tok;
         int    tpos;
 
-        cpos   = 0;
-        linum  = 1;
         tpos   = -1;
-        tokens = malloc(TOKEN_SIZE * sizeof(Token));
+        if (*s == '\0') return token(END);
         do {
                 if (isalpha(*s)) {
                         int   i = 1;
@@ -105,9 +103,8 @@ lexer(char *s)
                         } str  = malloc((i + 1) * sizeof(char));
                         strncpy(str, s - i, i);
                         i = char_to_token(str);
-                        if (i == -1)
-                                *(tokens + (++tpos)) = token_str(str);
-                        else *(tokens + (++tpos)) = token(i);
+                        if (i == -1) tok = token_str(str);
+                        else tok = token(i);
                         --s;
                         --cpos;
                 } else if (isdigit(*s)) {
@@ -119,27 +116,27 @@ lexer(char *s)
                                 ++cpos;
                         } str  = malloc((i + 1) * sizeof(char));
                         strncpy(str, s - i, i);
-                        *(tokens + (++tpos)) = token_num(atoi(str));
+                        tok = token_num(atoi(str));
                         --s;
                         --cpos;
                 } else {
                         switch (*s) {
-                        case ',': *(tokens + (++tpos)) = token(COL);     break;
-                        case '+': *(tokens + (++tpos)) = token(PLUS);    break;
-                        case '*': *(tokens + (++tpos)) = token(TIMES);   break;
-                        case '=': *(tokens + (++tpos)) = token(EQUAL);   break;
-                        case '/': *(tokens + (++tpos)) = token(DIVISE);  break;
-                        case '(': *(tokens + (++tpos)) = token(LPARENT); break;
-                        case ')': *(tokens + (++tpos)) = token(RPARENT); break;
-                        case ';': *(tokens + (++tpos)) = token(SEMICOL); break;
+                        case ',': tok = token(COL);     break;
+                        case '+': tok = token(PLUS);    break;
+                        case '*': tok = token(TIMES);   break;
+                        case '=': tok = token(EQUAL);   break;
+                        case '/': tok = token(DIVISE);  break;
+                        case '(': tok = token(LPARENT); break;
+                        case ')': tok = token(RPARENT); break;
+                        case ';': tok = token(SEMICOL); break;
                         case ' ': case '\t': break;
                         case '\n': ++linum; cpos = 0; break;
                         case '-':
                                 if (*(++s) == '>') {
-                                        *(tokens + (++tpos)) = token(ARR);
+                                        tok = token(ARR);
                                         ++cpos;
                                 } else {
-                                        *(tokens + (++tpos)) = token(MINUS);
+                                        tok = token(MINUS);
                                 } break;
                         default : error("Unxecpected charachter", linum, cpos,
                                         UNEXPECTED_CHAR);
@@ -147,8 +144,8 @@ lexer(char *s)
                 }
 
         } while (*(++s) != '\0');
-        *(tokens + tpos + 1) = token(END);
-        return tokens;
+        token(END);
+        return tok;
 }
 
 Token *toks;
@@ -178,7 +175,7 @@ assert(Token token)
 {
 
         if (next_token().type != token.type)
-                error("Unexpected token", toks->linum, toks->cpos,
+                error("Unexpected token", act_token().linum, act_token().cpos,
                       SYNTAX_ERROR);
 }
 
@@ -244,7 +241,7 @@ parse_expr()
                 break;
         }
         default:
-                error("Unexpected token.", toks->linum, toks->cpos,
+                error("Unexpected token.", tok.linum, tok.cpos,
                       SYNTAX_ERROR);
                 break;
         }
@@ -1143,8 +1140,10 @@ program(char *s)
 {
         struct decllist *decl;
 
-        toks = lexer(s);
-        decl = parse_program();
+        linum = 1;
+        cpos  = 0;
+        toks  = lexer(s);
+        decl  = parse_program();
         infer_decls(decl, NULL);
         printf("%s", prelude);
         compile_decls(decl);

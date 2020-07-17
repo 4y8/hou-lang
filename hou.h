@@ -137,7 +137,7 @@ typedef enum { TYPE_ERROR, UNEXPECTED_CHAR, SYNTAX_ERROR } Error;
 Token token(unsigned int);
 Token token_str(char *);
 Token token_num(int);
-Token *lexer(char *);
+Token lexer(char *);
 
 Expr *parse_expr();
 Expr *parse_add();
