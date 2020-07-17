@@ -134,9 +134,9 @@ typedef struct bss_elem {
 
 typedef enum { TYPE_ERROR, UNEXPECTED_CHAR, SYNTAX_ERROR } Error;
 
-Token make_token(unsigned int);
-Token make_token_str(char *);
-Token make_token_num(int);
+Token token(unsigned int);
+Token token_str(char *);
+Token token_num(int);
 Token *lexer(char *);
 
 Expr *parse_expr();

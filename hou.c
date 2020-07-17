@@ -152,20 +152,34 @@ lexer(char *s)
 }
 
 Token *toks;
+Token unused_token;
 Token
 next_token()
 {
-        return *(toks++);
+        if (unused_token.type == END) return *(toks++);
+        else {
+                Token t = unused_token;
+                unused_token = token(END);
+                return t;
+        }
 }
+
+Token
+act_token()
+{
+        if (unused_token.type == END) return *toks;
+        else return unused_token;
+}
+
+
 
 void
 assert(Token token)
 {
 
-        if (toks->type != token.type)
+        if (next_token().type != token.type)
                 error("Unexpected token", toks->linum, toks->cpos,
                       SYNTAX_ERROR);
-        ++toks;
 }
 
 Expr *
@@ -184,9 +198,8 @@ parse_expr()
                 char *name = malloc(strlen(tok.str) + 1);
                 strcpy(name, tok.str);
                 free(tok.str);
-                print_token(*toks);
-                printf("\n");
-                switch (next_token().type) {
+                tok = next_token();
+                switch (tok.type) {
                 case LPARENT: {
                         struct elist args;
                         struct elist *pt;
@@ -194,11 +207,11 @@ parse_expr()
                         expr->fun_call.fun->type = VAR;
                         expr->fun_call.fun->var = name;
                         pt = &args;
-                        while (toks->type != RPARENT) {
+                        while (act_token().type != RPARENT) {
                                 pt->next = malloc(sizeof(struct elist));
                                 pt->next->expr = *parse_expr();
                                 pt = pt->next;
-                                if (toks->type != RPARENT) assert(token(COL));
+                                if (act_token().type != RPARENT) assert(token(COL));
                         } pt->next = NULL;
                         expr->type = FUN_CALL;
                         assert(token(RPARENT));
@@ -206,7 +219,7 @@ parse_expr()
                         break;
                 }
                 default:
-                        --toks;
+                        unused_token = tok;
                         *expr = (Expr){.type = VAR, .var = name};
                         break;
                 }
@@ -219,11 +232,11 @@ parse_expr()
                 struct decllist l;
                 struct decllist *lp;
                 lp = &l;
-                while (toks->type != IN) {
+                while (act_token().type != IN) {
                         lp->next = malloc(sizeof(struct decllist));
                         lp->next->decl = parse_top_level();
                         lp = lp->next;
-                } ++toks;
+                } assert(token(IN));
                 lp->next = NULL;
                 expr->letin.decl = l.next;
                 expr->letin.expr = parse_body();
@@ -251,7 +264,7 @@ parse_body()
                 bp->next = malloc(sizeof(struct elist));
                 bp->next->expr = *parse_add();
                 bp = bp->next;
-                if (toks->type == SEMICOL) ++toks;
+                if (act_token().type == SEMICOL) next_token();
                 else loop = 0;
         } bp->next = NULL;
         return body.next;
@@ -279,11 +292,13 @@ parse_op(Expr * (*fun)(), unsigned int op0,
         e = malloc(sizeof(struct expr));
         e = expr;
         for (;;) {
-                if (toks->type == op0)
-                        e = binop(e, fun(++toks), op1);
-                else if (toks->type == op2)
-                        e = binop(e, fun(++toks), op3);
-                else return e;
+                if (act_token().type == op0) {
+                        next_token();
+                        e = binop(e, fun(), op1);
+                } else if (act_token().type == op2) {
+                        next_token();
+                        e = binop(e, fun(), op3);
+                } else return e;
         }
 
 }
@@ -304,38 +319,41 @@ Decl
 parse_top_level()
 {
         Decl decl;
+        Token tok;
 
-        if (toks->type == IDE) {
-                if ((++toks)->type == LPARENT) {
+        tok = next_token();
+        if (tok.type == IDE) {
+                char *name = malloc(strlen(tok.str) + 1);
+                strcpy(name, tok.str);
+                free(tok.str);
+                tok = next_token();
+                if (tok.type == LPARENT) {
                         struct elist args;
                         struct elist *pt;
-                        decl.fun_decl.name = (toks - 1)->str;
+                        decl.fun_decl.name = name;
                         pt = &args;
                         args.next = NULL;
-                        ++toks;
-                        while (toks->type != RPARENT) {
+                        while (act_token().type != RPARENT) {
                                 pt->next = malloc(sizeof(struct elist));
+                                if (act_token().type != VAR)
+                                        error("Unexpected token.", act_token().linum,
+                                              act_token().cpos, SYNTAX_ERROR);
                                 pt->next->expr = *parse_expr();
-                                if (pt->next->expr.type != VAR)
-                                        error("Unexpected token",
-                                              (toks - 1)->linum, (toks - 1)->cpos,
-                                              SYNTAX_ERROR);
                                 pt = pt->next;
-                                if (toks->type != RPARENT)
+                                if (act_token().type != RPARENT)
                                         assert(token(COL));
-                        } ++toks;
+                        } assert(token(RPARENT));
                         assert(token(ARR));
                         decl.type = FUN_DECL;
                         decl.fun_decl.args = args.next;
                         decl.fun_decl.body = parse_body();
-                } else if (toks->type == EQUAL) {
-                        decl.var_decl.name = (toks - 1)->str;
-                        ++toks;
-                        decl.type = VAR_DECL;
-                        decl.var_decl.body = parse_body();
-                } else error("Unexpected token.", toks->linum, toks->cpos,
-                             SYNTAX_ERROR);
-        } else error("Unexpected token.", toks->linum, toks->cpos, SYNTAX_ERROR);
+                } else if (tok.type == EQUAL) {
+                        decl = (Decl){.type = VAR_DECL, .var_decl.name = name,
+                                      .var_decl.body = parse_body()};
+                } else error("Unexpected token.", act_token().linum,
+                             act_token().cpos, SYNTAX_ERROR);
+        } else error("Unexpected token.", act_token().linum,
+                     act_token().cpos, SYNTAX_ERROR);
         return decl;
 }
 
@@ -347,7 +365,8 @@ parse_program()
 
         decls.next = NULL;
         p = &decls;
-        while (toks->type != END) {
+        unused_token = token(END);
+        while (act_token().type != END) {
                 p->next = malloc(sizeof(struct decllist));
                 p->next->decl = parse_top_level();
                 p = p->next;
@@ -1137,8 +1156,7 @@ program(char *s)
 int
 main(int argc, char **argv)
 {
-
         program("id(a)->a\n"
-                "main = id(2)");
+                "main = let a = 3 in id(a)");
         return 0;
 }
