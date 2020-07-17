@@ -138,15 +138,34 @@ Token token(unsigned int);
 Token token_str(char *);
 Token token_num(int);
 Token lexer();
+Token next_token();
+Token act_token();
+
+int peek(Token);
 
 Expr *parse_expr();
+Expr *parse_op(Expr * (*)(), unsigned int, unsigned int, unsigned int,
+               unsigned int);
 Expr *parse_add();
 Expr *parse_mul();
 Decl parse_top_level();
 struct elist *parse_body();
 struct decllist *parse_program();
 
+struct ilist* ftv(Type *);
+int occurs(struct ilist *, int);
+struct ilist *ftv_sch(Scheme);
+
 Type *tfun(Type *, Type *);
+Type *tint();
+Type *tvar(unsigned int);
+
+Type *app_subst(Type *, Subst *);
+Scheme app_subst_sch(Scheme, Subst *);
+
+Subst *compose_subst(Subst *, Subst *);
+Scheme find_ctx(char *, Context *);
+
 TypeReturn infer(struct expr, Context *);
 TypeReturn infer_args(struct elist *, Context *);
 TypeReturn infer_decl(struct decl, Context *);
@@ -160,11 +179,12 @@ char *compile_expr(Expr, SContext *);
 char *compile_body(struct elist *, SContext *);
 void compile_decl(Decl, SContext *, char *);
 
-void print_token(Token);
 void assert(Token);
+void error(char *, int, int, Error);
+
+void print_token(Token);
 void print_expr(struct expr, int);
 void print_elist(struct elist, int);
-void error(char *, int, int, Error);
 void print_decl(struct decl, int);
 void print_decllist(struct decllist *, int);
 void print_type(Type);

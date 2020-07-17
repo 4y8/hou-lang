@@ -10,7 +10,7 @@
 unsigned int linum;
 unsigned int cpos;
 unsigned int nvar = 0;
-char_to_tok keywords[] = {{LET, "let"}, {IN, "in"}};
+char_to_tok keywords[NKEYWORD] = {{LET, "let"}, {IN, "in"}};
 
 int
 char_to_token(char *s)
@@ -30,7 +30,7 @@ error(char *msg, int linum, int cpos, Error err_code)
 
         switch(err_code) {
         case UNEXPECTED_CHAR:
-                header_size = 22;
+                header_size = 21;
                 err_header = malloc(header_size * sizeof(char));
                 strncpy(err_header, "UNEXPECTED CHARACTER ", header_size);
                 break;
@@ -84,6 +84,7 @@ token_num(int num)
 }
 
 char *s;
+
 Token
 lexer()
 {
@@ -144,6 +145,7 @@ lexer()
 
 Token act_tok;
 Token unused_tok;
+
 Token
 next_token()
 {
@@ -284,7 +286,7 @@ binop(struct expr *left, struct expr *right, unsigned int op)
 
 Expr *
 parse_op(Expr * (*fun)(), unsigned int op0,
-          unsigned int op1, unsigned int op2, unsigned int op3)
+         unsigned int op1, unsigned int op2, unsigned int op3)
 {
         Expr *expr;
         Expr *e;
@@ -1006,14 +1008,14 @@ compile_expr(Expr e, SContext *ctx)
                                 regr = malloc(4);
                                 strcpy(regr, registers[reg]);
                         }
-                        printf("push rax\n"
-                               "push rdx\n"
+                        if (strcmp("rax", regl)) printf("push rax\n");
+                        printf("push rdx\n"
                                "mov rax, %s\n"
                                "mov rdx, 0\n"
                                "idiv %s\n"
                                "mov %s, rax\n"
-                               "pop rdx\n"
-                               "pop rax\n", regl, regr, regl);
+                               "pop rdx\n", regl, regr, regl);
+                        if (strcmp("rax", regl)) printf("push rax\n");
                         if (reg != -1) used_registers[reg] = 0;
                         break;
                 }
@@ -1173,6 +1175,6 @@ int
 main(int argc, char **argv)
 {
         program("cons(a, b)->a\n"
-                "main = 6/2");
+                "main = cons(6, 1) / 3");
         return 0;
 }
