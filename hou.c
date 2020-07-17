@@ -84,79 +84,76 @@ token_num(int num)
 
 }
 
+char *s;
 Token
-lexer(char *s)
+lexer()
 {
         Token tok;
         int    tpos;
 
         tpos   = -1;
         if (*s == '\0') return token(END);
-        do {
-                if (isalpha(*s)) {
-                        int   i = 1;
-                        char *str;
+        if (isalpha(*s)) {
+                int   i = 1;
+                char *str;
 
-                        while (isalpha(*(++s))) {
-                                ++i;
-                                ++cpos;
-                        } str  = malloc((i + 1) * sizeof(char));
-                        strncpy(str, s - i, i);
-                        i = char_to_token(str);
-                        if (i == -1) tok = token_str(str);
-                        else tok = token(i);
-                        --s;
-                        --cpos;
-                } else if (isdigit(*s)) {
-                        int   i = 1;
-                        char *str;
+                while (isalpha(*(++s))) {
+                        ++i;
+                        ++cpos;
+                } str  = malloc((i + 1) * sizeof(char));
+                strncpy(str, s - i, i);
+                i = char_to_token(str);
+                if (i == -1) tok = token_str(str);
+                else tok = token(i);
+                print_token(tok);
+                --cpos;
+        } else if (isdigit(*s)) {
+                int   i = 1;
+                char *str;
 
-                        while (isdigit(*(++s))) {
-                                ++i;
-                                ++cpos;
-                        } str  = malloc((i + 1) * sizeof(char));
-                        strncpy(str, s - i, i);
-                        tok = token_num(atoi(str));
-                        --s;
-                        --cpos;
-                } else {
-                        switch (*s) {
-                        case ',': tok = token(COL);     break;
-                        case '+': tok = token(PLUS);    break;
-                        case '*': tok = token(TIMES);   break;
-                        case '=': tok = token(EQUAL);   break;
-                        case '/': tok = token(DIVISE);  break;
-                        case '(': tok = token(LPARENT); break;
-                        case ')': tok = token(RPARENT); break;
-                        case ';': tok = token(SEMICOL); break;
-                        case ' ': case '\t': break;
-                        case '\n': ++linum; cpos = 0; break;
-                        case '-':
-                                if (*(++s) == '>') {
-                                        tok = token(ARR);
+                while (isdigit(*(++s))) {
+                        ++i;
+                        ++cpos;
+                } str  = malloc((i + 1) * sizeof(char));
+                strncpy(str, s - i, i);
+                tok = token_num(atoi(str));
+                --cpos;
+        } else {
+                switch (*s) {
+                case ',': tok = token(COL);     break;
+                case '+': tok = token(PLUS);    break;
+                case '*': tok = token(TIMES);   break;
+                case '=': tok = token(EQUAL);   break;
+                case '/': tok = token(DIVISE);  break;
+                case '(': tok = token(LPARENT); break;
+                case ')': tok = token(RPARENT); break;
+                case ';': tok = token(SEMICOL); break;
+                case ' ': case '\t': break;
+                case '\n': ++linum; cpos = 0; break;
+                case '-':
+                        if (*(++s) == '>') {
+                                tok = token(ARR);
                                         ++cpos;
-                                } else {
-                                        tok = token(MINUS);
+                        } else {
+                                tok = token(MINUS);
                                 } break;
-                        default : error("Unxecpected charachter", linum, cpos,
-                                        UNEXPECTED_CHAR);
+                default : error("Unxecpected charachter", linum, cpos,
+                                UNEXPECTED_CHAR);
                         } ++cpos;
-                }
-
-        } while (*(++s) != '\0');
-        token(END);
+                ++s;
+        }
         return tok;
 }
 
-Token *toks;
-Token unused_token;
+Token act_tok;
+Token unused_tok;
 Token
 next_token()
 {
-        if (unused_token.type == END) return *(toks++);
+        if (unused_tok.type == END) return act_tok = lexer();
         else {
-                Token t = unused_token;
-                unused_token = token(END);
+                Token t = unused_tok;
+                unused_tok = token(END);
                 return t;
         }
 }
@@ -164,11 +161,9 @@ next_token()
 Token
 act_token()
 {
-        if (unused_token.type == END) return *toks;
-        else return unused_token;
+        if (unused_tok.type == END) return act_token();
+        else return unused_tok;
 }
-
-
 
 void
 assert(Token token)
@@ -216,7 +211,7 @@ parse_expr()
                         break;
                 }
                 default:
-                        unused_token = tok;
+                        unused_tok = tok;
                         *expr = (Expr){.type = VAR, .var = name};
                         break;
                 }
@@ -362,12 +357,13 @@ parse_program()
 
         decls.next = NULL;
         p = &decls;
-        unused_token = token(END);
-        while (act_token().type != END) {
+        unused_tok = token(END);
+        do {
                 p->next = malloc(sizeof(struct decllist));
                 p->next->decl = parse_top_level();
                 p = p->next;
-        } return decls.next;
+        } while (act_token().type != END);
+        return decls.next;
 }
 
 struct ilist*
@@ -1136,13 +1132,13 @@ char *conclusion =
         "int 80h\n";
 
 void
-program(char *s)
+program(char *prog)
 {
         struct decllist *decl;
 
+        s = prog;
         linum = 1;
         cpos  = 0;
-        toks  = lexer(s);
         decl  = parse_program();
         infer_decls(decl, NULL);
         printf("%s", prelude);
