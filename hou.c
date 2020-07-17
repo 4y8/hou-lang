@@ -5,7 +5,6 @@
 #include <stdio.h>
 #include "hou.h"
 
-#define TOKEN_SIZE 100
 #define NKEYWORD   2
 
 unsigned int linum;
@@ -140,8 +139,7 @@ lexer()
                                 UNEXPECTED_CHAR);
                 } ++cpos;
                 ++s;
-        }
-        return tok;
+        } return tok;
 }
 
 Token act_tok;
@@ -173,13 +171,16 @@ assert(Token token)
                       SYNTAX_ERROR);
 }
 
-void
+int
 peek(Token token)
 {
         Token t;
 
         t = next_token();
-        if (t.type != token.type) unused_tok = t;
+        if (t.type != token.type) {
+                unused_tok = t;
+                return 0;
+        } return 1;
 }
 
 Expr *
@@ -211,10 +212,10 @@ parse_expr()
                                 pt->next = malloc(sizeof(struct elist));
                                 pt->next->expr = *parse_expr();
                                 pt = pt->next;
+                                peek(token(RPARENT));
                                 if (act_token().type != RPARENT) assert(token(COL));
                         } pt->next = NULL;
                         expr->type = FUN_CALL;
-                        assert(token(RPARENT));
                         expr->fun_call.args = args.next;
                         break;
                 }
@@ -244,7 +245,7 @@ parse_expr()
                 break;
         }
         default:
-                error("Unexpected token.", tok.linum, tok.cpos,
+                error("Unexpected token .", tok.linum, tok.cpos,
                       SYNTAX_ERROR);
                 break;
         }
@@ -292,13 +293,9 @@ parse_op(Expr * (*fun)(), unsigned int op0,
         e = malloc(sizeof(struct expr));
         e = expr;
         for (;;) {
-                if (act_token().type == op0) {
-                        next_token();
-                        e = binop(e, fun(), op1);
-                } else if (act_token().type == op2) {
-                        next_token();
-                        e = binop(e, fun(), op3);
-                } else return e;
+                if (peek(token(op0))) e = binop(e, fun(), op1);
+                else if (peek(token(op2))) e = binop(e, fun(), op3);
+                else return e;
         }
 
 }
@@ -333,7 +330,7 @@ parse_top_level()
                         decl.fun_decl.name = name;
                         pt = &args;
                         args.next = NULL;
-                        while (act_token().type != RPARENT) {
+                        while (!peek(token(RPARENT))) {
                                 pt->next = malloc(sizeof(struct elist));
                                 pt->next->expr = *parse_expr();
                                 if (pt->next->expr.type != VAR)
@@ -342,8 +339,7 @@ parse_top_level()
                                 pt = pt->next;
                                 if (act_token().type != RPARENT)
                                         assert(token(COL));
-                        } assert(token(RPARENT));
-                        assert(token(ARR));
+                        } assert(token(ARR));
                         decl.type = FUN_DECL;
                         decl.fun_decl.args = args.next;
                         decl.fun_decl.body = parse_body();
@@ -370,8 +366,7 @@ parse_program()
                 p->next = malloc(sizeof(struct decllist));
                 p->next->decl = parse_top_level();
                 p = p->next;
-                peek(token(END));
-        } while (act_token().type != END);
+        } while (!peek(token(END)));
         return decls.next;
 }
 
@@ -1160,7 +1155,7 @@ program(char *prog)
 int
 main(int argc, char **argv)
 {
-        program("id(a)->a\n"
-                "main = let a = 3 in id(a)");
+        program("cons(a, b)->a\n"
+                "main = let a = 3 b = 2 in a * b + 1");
         return 0;
 }
