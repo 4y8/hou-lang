@@ -96,21 +96,19 @@ lexer()
         if (isalpha(*s)) {
                 int   i = 1;
                 char *str;
-
                 while (isalpha(*(++s))) {
                         ++i;
                         ++cpos;
-                } str  = malloc((i + 1) * sizeof(char));
+                } str = malloc((i + 1) * sizeof(char));
                 strncpy(str, s - i, i);
+                str[i] = 0;
                 i = char_to_token(str);
                 if (i == -1) tok = token_str(str);
                 else tok = token(i);
-                print_token(tok);
                 --cpos;
         } else if (isdigit(*s)) {
                 int   i = 1;
                 char *str;
-
                 while (isdigit(*(++s))) {
                         ++i;
                         ++cpos;
@@ -128,18 +126,19 @@ lexer()
                 case '(': tok = token(LPARENT); break;
                 case ')': tok = token(RPARENT); break;
                 case ';': tok = token(SEMICOL); break;
-                case ' ': case '\t': break;
-                case '\n': ++linum; cpos = 0; break;
+                case '\n': ++linum; cpos = -1;
+                case ' ': case '\t': ++cpos; ++s; tok = lexer(); --s; break;
                 case '-':
                         if (*(++s) == '>') {
                                 tok = token(ARR);
-                                        ++cpos;
+                                ++cpos;
                         } else {
+                                --s;
                                 tok = token(MINUS);
-                                } break;
+                        } break;
                 default : error("Unxecpected charachter", linum, cpos,
                                 UNEXPECTED_CHAR);
-                        } ++cpos;
+                } ++cpos;
                 ++s;
         }
         return tok;
@@ -161,7 +160,7 @@ next_token()
 Token
 act_token()
 {
-        if (unused_tok.type == END) return act_token();
+        if (unused_tok.type == END) return act_tok;
         else return unused_tok;
 }
 
@@ -172,6 +171,15 @@ assert(Token token)
         if (next_token().type != token.type)
                 error("Unexpected token", act_token().linum, act_token().cpos,
                       SYNTAX_ERROR);
+}
+
+void
+peek(Token token)
+{
+        Token t;
+
+        t = next_token();
+        if (t.type != token.type) unused_tok = t;
 }
 
 Expr *
@@ -228,8 +236,8 @@ parse_expr()
                         lp->next = malloc(sizeof(struct decllist));
                         lp->next->decl = parse_top_level();
                         lp = lp->next;
-                } assert(token(IN));
-                lp->next = NULL;
+                        peek(token(IN));
+                } lp->next = NULL;
                 expr->letin.decl = l.next;
                 expr->letin.expr = parse_body();
                 expr->type = LETIN;
@@ -327,10 +335,10 @@ parse_top_level()
                         args.next = NULL;
                         while (act_token().type != RPARENT) {
                                 pt->next = malloc(sizeof(struct elist));
-                                if (act_token().type != VAR)
+                                pt->next->expr = *parse_expr();
+                                if (pt->next->expr.type != VAR)
                                         error("Unexpected token.", act_token().linum,
                                               act_token().cpos, SYNTAX_ERROR);
-                                pt->next->expr = *parse_expr();
                                 pt = pt->next;
                                 if (act_token().type != RPARENT)
                                         assert(token(COL));
@@ -362,6 +370,7 @@ parse_program()
                 p->next = malloc(sizeof(struct decllist));
                 p->next->decl = parse_top_level();
                 p = p->next;
+                peek(token(END));
         } while (act_token().type != END);
         return decls.next;
 }
@@ -819,7 +828,7 @@ print_token(Token t)
         case DIVISE:  printf("/");                     break;
         case RPARENT: printf(")");                     break;
         case SEMICOL: printf(";");                     break;
-        case END:                                      break;
+        case END:     printf("END");                   break;
     }
 }
 
