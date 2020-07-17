@@ -990,19 +990,35 @@ compile_expr(Expr e, SContext *ctx)
                 char *regr = compile_expr(*e.binop.right, ctx);
                 switch (e.binop.op) {
                 case OP_PLUS:
-                        printf("add %s, %s\n", regr, regl);
+                        printf("add %s, %s\n", regl, regr);
                         break;
                 case OP_MINUS:
-                        printf("sub %s, %s\n", regr, regl);
+                        printf("sub %s, %s\n", regl, regr);
                         break;
                 case OP_TIMES:
-                        printf("imul %s, %s\n", regr, regl);
+                        printf("imul %s, %s\n", regl, regr);
                         break;
-                case OP_DIVISE:
-                        printf("idiv %s, %s\n", regr, regl);
+                case OP_DIVISE:{
+                        int reg = -1;
+                        if (!strcmp("rdx", regr)) {
+                                reg = alloc_reg();
+                                printf("mov %s, rdx\n", registers[reg]);
+                                regr = malloc(4);
+                                strcpy(regr, registers[reg]);
+                        }
+                        printf("push rax\n"
+                               "push rdx\n"
+                               "mov rax, %s\n"
+                               "mov rdx, 0\n"
+                               "idiv %s\n"
+                               "mov %s, rax\n"
+                               "pop rdx\n"
+                               "pop rax\n", regl, regr, regl);
+                        if (reg != -1) used_registers[reg] = 0;
                         break;
-                } free_reg(regl);
-                return regr;
+                }
+                } free_reg(regr);
+                return regl;
                 break;
         }
         case VAR:
@@ -1030,6 +1046,7 @@ compile_expr(Expr e, SContext *ctx)
                         ++length;
                 } char *reg = compile_body(e.letin.expr, ctx);
                 printf("add rsp, %d\n", length << 3);
+                nvar -= length;
                 return reg;
         }
         case FUN_CALL: {
@@ -1156,6 +1173,6 @@ int
 main(int argc, char **argv)
 {
         program("cons(a, b)->a\n"
-                "main = let a = 3 b = 2 in a * b + 1");
+                "main = 6/2");
         return 0;
 }
