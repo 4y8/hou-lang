@@ -152,6 +152,11 @@ lexer(char *s)
 }
 
 Token *toks;
+Token
+next_token()
+{
+        return *(toks++);
+}
 
 void
 assert(Token token)
@@ -167,22 +172,28 @@ Expr *
 parse_expr()
 {
         Expr *expr;
+        Token tok;
 
+        tok          = next_token();
         expr         = malloc(sizeof(struct expr));
-        expr->linum  = toks->linum;
-        expr->cpos   = toks->cpos;
-        expr->abspos = toks->abspos;
-        switch (toks->type) {
-        case IDE:
-                switch ((++toks)->type) {
+        expr->linum  = tok.linum;
+        expr->cpos   = tok.cpos;
+        expr->abspos = tok.abspos;
+        switch (tok.type) {
+        case IDE: {
+                char *name = malloc(strlen(tok.str) + 1);
+                strcpy(name, tok.str);
+                free(tok.str);
+                print_token(*toks);
+                printf("\n");
+                switch (next_token().type) {
                 case LPARENT: {
                         struct elist args;
                         struct elist *pt;
                         expr->fun_call.fun = malloc(sizeof(Expr));
                         expr->fun_call.fun->type = VAR;
-                        expr->fun_call.fun->var = (toks - 1)->str;
+                        expr->fun_call.fun->var = name;
                         pt = &args;
-                        ++toks;
                         while (toks->type != RPARENT) {
                                 pt->next = malloc(sizeof(struct elist));
                                 pt->next->expr = *parse_expr();
@@ -190,24 +201,24 @@ parse_expr()
                                 if (toks->type != RPARENT) assert(token(COL));
                         } pt->next = NULL;
                         expr->type = FUN_CALL;
-                        ++toks;
+                        assert(token(RPARENT));
                         expr->fun_call.args = args.next;
                         break;
                 }
                 default:
-                        *expr = (Expr){.type = VAR, .var = (toks - 1)->str};
+                        --toks;
+                        *expr = (Expr){.type = VAR, .var = name};
                         break;
                 }
                 break;
+        }
         case NUM:
-                *expr = (Expr){.type = INT, .num = toks->num};
-                ++toks;
+                *expr = (Expr){.type = INT, .num = tok.num};
                 break;
         case LET: {
                 struct decllist l;
                 struct decllist *lp;
                 lp = &l;
-                ++toks;
                 while (toks->type != IN) {
                         lp->next = malloc(sizeof(struct decllist));
                         lp->next->decl = parse_top_level();
@@ -1118,7 +1129,7 @@ program(char *s)
         infer_decls(decl, NULL);
         printf("%s", prelude);
         compile_decls(decl);
-        printf("mov rbx, rax\n");
+        printf("mov rbx, [main]\n");
         printf("%s", conclusion);
         compile_bss();
 }
