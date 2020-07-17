@@ -3,7 +3,8 @@
 
 typedef struct {
         enum { LPARENT, RPARENT, IDE, NUM, STR, EQUAL, SEMICOL, COL,
-               END, ARR, LET, IN, PLUS, MINUS, TIMES, DIVISE } type;
+               END, ARR, LET, IN, PLUS, MINUS, TIMES, DIVISE, DOT, IF,
+               ELSE, ELIF } type;
         union {
                 int   num;
                 char *str;
@@ -16,7 +17,12 @@ typedef struct {
 typedef struct {
         unsigned int t;
         char *s;
-} char_to_tok;
+} KeywordToken;
+
+typedef struct {
+        unsigned int t;
+        char c;
+} PuncToken;
 
 struct expr {
         union {
@@ -133,6 +139,8 @@ typedef struct bss_elem {
 } BSSTable;
 
 typedef enum { TYPE_ERROR, UNEXPECTED_CHAR, SYNTAX_ERROR } Error;
+int punct_to_token(char);
+int keyword_to_token(char *);
 
 Token token(unsigned int);
 Token token_str(char *);

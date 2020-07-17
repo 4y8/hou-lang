@@ -5,15 +5,21 @@
 #include <stdio.h>
 #include "hou.h"
 
-#define NKEYWORD   2
+#define NKEYWORD 5
+#define NPUNCT   9
 
 unsigned int linum;
 unsigned int cpos;
 unsigned int nvar = 0;
-char_to_tok keywords[NKEYWORD] = {{LET, "let"}, {IN, "in"}};
+KeywordToken keywords[NKEYWORD] = {{LET, "let"}, {IN, "in"}, {IF, "if"},
+                                   {ELIF, "elif"}, {ELSE, "else"}};
+PuncToken punctuation[NPUNCT] = {
+        {DOT, '.'}, {COL, ','}, {DIVISE, '/'}, {SEMICOL, ';'}, {PLUS, '+'},
+        {TIMES, '*'}, {LPARENT, '('}, {RPARENT, ')'}, {EQUAL, '='}
+};
 
 int
-char_to_token(char *s)
+keyword_to_token(char *s)
 {
 
         for (unsigned i = 0; i < NKEYWORD; ++i)
@@ -21,6 +27,17 @@ char_to_token(char *s)
                         return keywords[i].t;
         return -1;
 }
+
+int
+punct_to_token(char c)
+{
+
+        for (unsigned i = 0; i < NPUNCT; ++i)
+                if (punctuation[i].c == c)
+                        return punctuation[i].t;
+        return -1;
+}
+
 
 void
 error(char *msg, int linum, int cpos, Error err_code)
@@ -102,7 +119,7 @@ lexer()
                 } str = malloc((i + 1) * sizeof(char));
                 strncpy(str, s - i, i);
                 str[i] = 0;
-                i = char_to_token(str);
+                i = keyword_to_token(str);
                 if (i == -1) tok = token_str(str);
                 else tok = token(i);
                 --cpos;
@@ -117,27 +134,24 @@ lexer()
                 tok = token_num(atoi(str));
                 --cpos;
         } else {
-                switch (*s) {
-                case ',': tok = token(COL);     break;
-                case '+': tok = token(PLUS);    break;
-                case '*': tok = token(TIMES);   break;
-                case '=': tok = token(EQUAL);   break;
-                case '/': tok = token(DIVISE);  break;
-                case '(': tok = token(LPARENT); break;
-                case ')': tok = token(RPARENT); break;
-                case ';': tok = token(SEMICOL); break;
-                case '\n': ++linum; cpos = -1;
-                case ' ': case '\t': ++cpos; ++s; tok = lexer(); --s; break;
-                case '-':
-                        if (*(++s) == '>') {
-                                tok = token(ARR);
-                                ++cpos;
-                        } else {
-                                --s;
-                                tok = token(MINUS);
-                        } break;
-                default : error("Unxecpected charachter", linum, cpos,
-                                UNEXPECTED_CHAR);
+                int i = punct_to_token(*s);
+                if (i != -1) tok = token(i);
+                else {
+                        switch (*s) {
+                        case '\n': ++linum; cpos = -1;
+                        case ' ': case '\t': ++cpos; ++s; tok = lexer(); --s;
+                                break;
+                        case '-':
+                                if (*(++s) == '>') {
+                                        tok = token(ARR);
+                                        ++cpos;
+                                } else {
+                                        --s;
+                                        tok = token(MINUS);
+                                } break;
+                        default : error("Unxecpected charachter", linum, cpos,
+                                        UNEXPECTED_CHAR);
+                        }
                 } ++cpos;
                 ++s;
         } return tok;
@@ -811,11 +825,15 @@ print_token(Token t)
 {
         switch(t.type) {
         case IN:      printf("in");                    break;
+        case IF:      printf("if");                    break;
         case LET:     printf("let");                   break;
+        case ELSE:    printf("else");                  break;
+        case ELIF:    printf("elif");                  break;
         case NUM:     printf("number: %d", t.num);     break;
         case IDE:     printf("identifier: %s", t.str); break;
         case STR:     printf("string: %s", t.str);     break;
         case COL:     printf(",");                     break;
+        case DOT:     printf(".");                     break;
         case ARR:     printf("->");                    break;
         case PLUS:    printf("+");                     break;
         case EQUAL:   printf("=");                     break;
