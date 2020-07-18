@@ -149,7 +149,7 @@ Token lexer();
 Token next_token();
 Token act_token();
 
-int peek(Token);
+int peek(unsigned int);
 
 Expr *parse_expr();
 Expr *parse_op(Expr * (*)(), unsigned int, unsigned int, unsigned int,
@@ -187,7 +187,7 @@ char *compile_expr(Expr, SContext *);
 char *compile_body(struct elist *, SContext *);
 void compile_decl(Decl, SContext *, char *);
 
-void assert(Token);
+void assert(unsigned int);
 void error(char *, int, int, Error);
 
 void print_token(Token);

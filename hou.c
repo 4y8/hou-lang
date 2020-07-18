@@ -179,21 +179,21 @@ act_token()
 }
 
 void
-assert(Token token)
+assert(unsigned int type)
 {
 
-        if (next_token().type != token.type)
+        if (next_token().type != type)
                 error("Unexpected token", act_token().linum, act_token().cpos,
                       SYNTAX_ERROR);
 }
 
 int
-peek(Token token)
+peek(unsigned int type)
 {
         Token t;
 
         t = next_token();
-        if (t.type != token.type) {
+        if (t.type != type) {
                 unused_tok = t;
                 return 0;
         } return 1;
@@ -224,12 +224,12 @@ parse_expr()
                         expr->fun_call.fun->type = VAR;
                         expr->fun_call.fun->var = name;
                         pt = &args;
-                        while (act_token().type != RPARENT) {
+                        while (!peek(RPARENT)) {
                                 pt->next = malloc(sizeof(struct elist));
                                 pt->next->expr = *parse_expr();
                                 pt = pt->next;
-                                peek(token(RPARENT));
-                                if (act_token().type != RPARENT) assert(token(COL));
+                                if (!peek(RPARENT)) assert(COL);
+                                else unused_tok = token(RPARENT);
                         } pt->next = NULL;
                         expr->type = FUN_CALL;
                         expr->fun_call.args = args.next;
@@ -249,11 +249,10 @@ parse_expr()
                 struct decllist l;
                 struct decllist *lp;
                 lp = &l;
-                while (act_token().type != IN) {
+                while (!peek(IN)) {
                         lp->next = malloc(sizeof(struct decllist));
                         lp->next->decl = parse_top_level();
                         lp = lp->next;
-                        peek(token(IN));
                 } lp->next = NULL;
                 expr->letin.decl = l.next;
                 expr->letin.expr = parse_body();
@@ -309,11 +308,10 @@ parse_op(Expr * (*fun)(), unsigned int op0,
         e = malloc(sizeof(struct expr));
         e = expr;
         for (;;) {
-                if (peek(token(op0))) e = binop(e, fun(), op1);
-                else if (peek(token(op2))) e = binop(e, fun(), op3);
+                if (peek(op0)) e = binop(e, fun(), op1);
+                else if (peek(op2)) e = binop(e, fun(), op3);
                 else return e;
         }
-
 }
 
 Expr *
@@ -346,7 +344,7 @@ parse_top_level()
                         decl.fun_decl.name = name;
                         pt = &args;
                         args.next = NULL;
-                        while (!peek(token(RPARENT))) {
+                        while (!peek(RPARENT)) {
                                 pt->next = malloc(sizeof(struct elist));
                                 pt->next->expr = *parse_expr();
                                 if (pt->next->expr.type != VAR)
@@ -354,8 +352,8 @@ parse_top_level()
                                               act_token().cpos, SYNTAX_ERROR);
                                 pt = pt->next;
                                 if (act_token().type != RPARENT)
-                                        assert(token(COL));
-                        } assert(token(ARR));
+                                        assert(COL);
+                        } assert(ARR);
                         decl.type = FUN_DECL;
                         decl.fun_decl.args = args.next;
                         decl.fun_decl.body = parse_body();
@@ -382,7 +380,7 @@ parse_program()
                 p->next = malloc(sizeof(struct decllist));
                 p->next->decl = parse_top_level();
                 p = p->next;
-        } while (!peek(token(END)));
+        } while (!peek(END));
         return decls.next;
 }
 
@@ -474,13 +472,24 @@ tint()
 }
 
 Type *
-tvar (unsigned int var)
+tvar(unsigned int var)
 {
         Type *t;
 
         t = malloc(sizeof(Type));
         t->var = var;
         t->type = TVAR;
+        return t;
+}
+
+Type *
+tlit(char *name)
+{
+        Type *t;
+
+        t = malloc(sizeof(Type));
+        t->lit = name;
+        t->type = TLIT;
         return t;
 }
 
@@ -669,7 +678,10 @@ infer(struct expr expr, Context *ctx)
                 TypeReturn args = infer_args(expr.fun_call.args, ctx);
                 TypeReturn at = infer_args(expr.fun_call.args, ctx);
                 int save_nvar = nvar + 1;
-                at.type = add_tfun(at.type, tvar(++nvar));
+                if (!expr.fun_call.args)
+                        at.type = tfun(tlit("unit"), tvar(++nvar));
+                else
+                        at.type = add_tfun(at.type, tvar(++nvar));
                 Subst *s = unify(at.type, ft.type);
                 s = compose_subst(ft.subst, s);
                 tp.type = app_subst(tvar(save_nvar), s);
@@ -729,7 +741,8 @@ infer_decl(struct decl decl, Context *ctx)
                 tp.subst = bt.subst;
                 p = decl.fun_decl.args;
                 TypeReturn at = infer_args(decl.fun_decl.args, ctx);
-                at.type = add_tfun(at.type, bt.type);
+                if (!p) at.type = tfun(tlit("unit"), bt.type);
+                else    at.type = add_tfun(at.type, bt.type);
                 tp.type = app_subst(at.type, bt.subst);
                 break;
         }
@@ -756,6 +769,7 @@ infer_body(struct elist *body, Context *ctx)
 Context *
 infer_decls(struct decllist *decls, Context *ctx)
 {
+
         while (decls) {
                 Context *nctx = malloc(sizeof(struct decllist));
                 TypeReturn dt = infer_decl(decls->decl, ctx);
@@ -949,7 +963,14 @@ void
 add_bss(char *name, int size)
 {
         BSSTable *nbss_table;
+        BSSTable *p;
 
+        /* Check if the name is already used  */
+        p = bss_table;
+        while (p) {
+                if (!strcmp(name, p->name)) return;
+                p = p->next;
+        }
         nbss_table = malloc(sizeof(BSSTable));
         nbss_table->name = malloc(64);
         strncpy(nbss_table->name, name, 64);
@@ -1123,10 +1144,11 @@ compile_decl(Decl decl, SContext *ctx, char *name)
         } else {
                 char label[64];
                 int length = 1;
+                int n = ++ndecl;
                 struct elist *p = decl.fun_decl.args;
                 sprintf(label, "__decl%d", ++ndecl);
                 printf("jmp %s\n"
-                       "_%s:\n", label, name);
+                       "_%s%d:\n", label, name, n);
                 while (p) {
                         ctx = add_sctx(ctx, p->expr.var, ++nvar);
                         ++length;
@@ -1136,7 +1158,7 @@ compile_decl(Decl decl, SContext *ctx, char *name)
                 printf("mov rax, %s\n"
                        "ret\n"
                        "%s:\n", reg, label);
-                printf("mov QWORD [%s], QWORD _%s\n", name, name);
+                printf("mov QWORD [%s], QWORD _%s%d\n", name, name, n);
                 free_reg(reg);
                 nvar -= length;
         }

@@ -1,0 +1,2 @@
+void() -> 3
+main = void()
