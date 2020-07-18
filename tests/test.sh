@@ -4,11 +4,11 @@ test() {
     ./a.out "$(cat "$1")" > out.asm &&
         nasm -felf64 out.asm -o out.o &&
         ld out.o -o out &&
-        ./out ||
-            [ "$?" != "$2" ] &&
-                echo "Test $1 failed!" &&
-                exit 1
-    rm ./out.o ./out
+        ./out
+    [ "$?" != "$2" ] &&
+        echo "Test $1 failed!" &&
+        exit 1
+    rm ./out.o ./out ./out.asm
 }
 
 [ -z "$CC" ] && CC="cc"
@@ -16,5 +16,7 @@ test() {
 for file in *; do
     [ -e "$file" ] || [ -L "$file" ] || continue
     [ "$file" != "test.sh" ] && [ "$file" != "a.out" ] &&
-    printf '%s\n' "$file"
+        test "$file" "$(sed -e "s/^.*\(.\)$/\1/" < "$file")" &&
+        echo "Test $file passed!"
 done
+echo "All test passed!"
