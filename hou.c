@@ -1026,14 +1026,12 @@ compile_expr(Expr e, SContext *ctx)
                                 regr = malloc(4);
                                 strcpy(regr, registers[reg]);
                         }
-                        if (strcmp("rax", regl)) printf("push rax\n");
                         printf("push rdx\n"
                                "mov rax, %s\n"
                                "mov rdx, 0\n"
                                "idiv %s\n"
                                "mov %s, rax\n"
                                "pop rdx\n", regl, regr, regl);
-                        if (strcmp("rax", regl)) printf("push rax\n");
                         if (reg != -1) used_registers[reg] = 0;
                         break;
                 }
@@ -1092,7 +1090,9 @@ compile_expr(Expr e, SContext *ctx)
                                 printf("pop %s\n", registers[i]);
                                 --nvar;
                         }
-                return "rax";
+                int reg = alloc_reg();
+                printf("mov %s, rax\n", registers[reg]);
+                return registers[reg];
         }
         }
         return "";
@@ -1192,7 +1192,6 @@ program(char *prog)
 int
 main(int argc, char **argv)
 {
-        program("cons(a, b)->a\n"
-                "main = cons(6, 1) / 3");
+        program(argv[1]);
         return 0;
 }
