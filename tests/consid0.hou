@@ -1,0 +1,3 @@
+id(a) -> a
+cons(a, b) -> a
+main = cons(0, id(4)) 

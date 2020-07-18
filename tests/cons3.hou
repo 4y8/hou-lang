@@ -1,0 +1,2 @@
+cons(a, b) -> a
+main = cons(3, 99)
