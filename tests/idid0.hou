@@ -1,0 +1,2 @@
+id(a) -> a
+main = id(8); id(0)
