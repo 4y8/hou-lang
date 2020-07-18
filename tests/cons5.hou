@@ -1,0 +1,2 @@
+cons(a, b) -> a
+main = cons(5, 1)
