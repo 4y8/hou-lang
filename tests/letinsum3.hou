@@ -1,0 +1,6 @@
+main = 
+	let 
+	    a = 2
+	    b = 1
+	in 
+	a + b 

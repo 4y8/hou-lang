@@ -1,0 +1,7 @@
+main =
+	let 
+	    cons(a, b) -> a
+	    a = 4
+	    b = 56
+	in
+	cons(a, b)
