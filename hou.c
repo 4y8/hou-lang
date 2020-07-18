@@ -109,7 +109,7 @@ lexer()
         int    tpos;
 
         tpos   = -1;
-        if (*s == '\0') return token(END);
+        if (*s == 0) return token(END);
         if (isalpha(*s)) {
                 int   i = 1;
                 char *str;
@@ -1080,7 +1080,9 @@ compile_expr(Expr e, SContext *ctx)
                         }
                 struct elist *p = e.fun_call.args;
                 while (p) {
-                        printf("push %s\n", compile_expr(p->expr, ctx));
+                        char *arg = compile_expr(p->expr, ctx);
+                        printf("push %s\n", arg);
+                        free_reg(arg);
                         p = p->next;
                         ++length;
                 } printf("call %s\n", fun);

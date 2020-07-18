@@ -1,0 +1,7 @@
+main =
+	let 
+	    cons(a, b) -> a
+	    a = 4
+	    b = 7 
+	in
+	cons(b, a)

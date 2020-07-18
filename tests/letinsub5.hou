@@ -1,0 +1,6 @@
+main = 
+	let 
+	    a = 8 
+	    b = 3 
+	in 
+	a - b 
