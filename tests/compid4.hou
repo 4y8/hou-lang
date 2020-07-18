@@ -1,0 +1,3 @@
+id(a) -> a
+comp(f, x) -> f(x)
+main = comp(id, 4)

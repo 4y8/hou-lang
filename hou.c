@@ -1171,8 +1171,8 @@ char *prelude =
         "_start:\n";
 
 char *conclusion =
-        "mov rax, 1\n"
-        "int 80h\n";
+        "mov rax, 60\n"
+        "syscall\n";
 
 void
 program(char *prog)
@@ -1186,7 +1186,7 @@ program(char *prog)
         infer_decls(decl, NULL);
         printf("%s", prelude);
         compile_decls(decl);
-        printf("mov rbx, [main]\n");
+        printf("mov rdi, [main]\n");
         printf("%s", conclusion);
         compile_bss();
 }

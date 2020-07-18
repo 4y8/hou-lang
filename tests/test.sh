@@ -20,3 +20,4 @@ for file in *; do
         echo "Test $file passed!"
 done
 echo "All test passed!"
+rm a.out
