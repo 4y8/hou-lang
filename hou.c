@@ -19,19 +19,36 @@ PuncToken punctuation[NPUNCT] = {
         {TIMES, '*'}, {LPARENT, '('}, {RPARENT, ')'}, {EQUAL, '='}
 };
 
+MemoryTable *mem = NULL;
+
 void *
 safe_malloc(size_t size)
 {
         void *p;
+        MemoryTable *nmem;
 
         p = malloc(size);
         if (!p) error("Can't allocate memory.", 0, 0, SYNTAX_ERROR);
+        nmem = malloc(sizeof(MemoryTable));
+        if (!nmem) error("Can't allocate memory.", 0, 0, SYNTAX_ERROR);
+        *nmem = (MemoryTable){.next = mem, .p = p};
+        mem = nmem;
         return p;
 }
 
 void
 free_all()
 {
+        MemoryTable *p;
+        MemoryTable *prev;
+
+        p = mem;
+        while (p) {
+                prev = p->next;
+                free(p->p);
+                free(p);
+                p = prev;
+        }
 
 }
 
@@ -65,33 +82,32 @@ error(char *msg, int linum, int cpos, Error err_code)
         switch(err_code) {
         case UNEXPECTED_CHAR:
                 header_size = 21;
-                err_header = safe_malloc(header_size * sizeof(char));
+                err_header = safe_malloc(header_size);
                 strncpy(err_header, "UNEXPECTED CHARACTER ", header_size);
                 break;
         case TYPE_ERROR:
                 header_size = 11;
-                err_header = safe_malloc(header_size * sizeof(char));
+                err_header = safe_malloc(header_size);
                 strncpy(err_header, "TYPE ERROR ", header_size);
                 break;
         case SYNTAX_ERROR:
                 header_size = 13;
-                err_header = safe_malloc(header_size * sizeof(char));
+                err_header = safe_malloc(header_size);
                 strncpy(err_header, "SYNTAX ERROR ", header_size);
                 break;
         } printf("\033[35m\033[1m-- ");
         printf("%s", err_header);
         for (int i = 0; i < 77 - header_size; i++) printf("-");
         printf("\n\n\033[39m\033[1m%d:%d: %s\n", linum, cpos, msg);
+        free_all();
         exit(1);
 }
 
 Token
 token(unsigned int type)
 {
-        Token t;
 
-        t = (Token){.type = type, .linum = linum, .cpos = cpos};
-        return t;
+        return (Token){.type = type, .linum = linum, .cpos = cpos};
 }
 
 Token
@@ -148,7 +164,19 @@ lexer()
                 else tok = token(i);
                 --cpos;
         } else if (isdigit(*s)) {
+<<<<<<< HEAD
                 tok = token_num(atoi(lex_while(isdigit)));
+=======
+                int   i = 1;
+                char *str;
+                while (isdigit(*(++s))) {
+                        ++i;
+                        ++cpos;
+                } str  = safe_malloc((i + 1) * sizeof(char));
+                strncpy(str, s - i, i);
+                str[i] = 0;
+                tok = token_num(atoi(str));
+>>>>>>> 7310951a37e8b9bac9fb6512b1b8cbf40f332214
                 --cpos;
         } else {
                 int i = punct_to_token(*s);
@@ -226,28 +254,27 @@ parse_expr()
         Token tok;
 
         tok   = next_token();
-        expr  = safe_malloc(sizeof(struct expr));
+        expr  = safe_malloc(sizeof(Expr));
         *expr = (Expr){.linum = tok.linum, .cpos = tok.cpos,
                        .abspos = tok.abspos};
         switch (tok.type) {
         case IDE: {
-                char *name = safe_malloc(strlen(tok.str) + 1);
-                strcpy(name, tok.str);
+                char *name = tok.str;
                 tok = next_token();
                 switch (tok.type) {
                 case LPARENT: {
                         struct elist args;
-                        struct elist *pt;
+                        struct elist *p;
                         expr->fun_call.fun = safe_malloc(sizeof(Expr));
                         *expr->fun_call.fun = (Expr){.type = VAR, .var = name};
-                        pt = &args;
+                        p = &args;
                         while (!peek(RPARENT)) {
-                                pt->next = safe_malloc(sizeof(struct elist));
-                                pt->next->expr = *parse_add();
-                                pt = pt->next;
+                                p->next = safe_malloc(sizeof(struct elist));
+                                p->next->expr = *parse_add();
+                                p = p->next;
                                 if (!peek(RPARENT)) assert(COL);
                                 else unused_tok = token(RPARENT);
-                        } pt->next = NULL;
+                        } p->next = NULL;
                         expr->type = FUN_CALL;
                         expr->fun_call.args = args.next;
                         break;
@@ -264,13 +291,13 @@ parse_expr()
                 break;
         case LET: {
                 struct decllist l;
-                struct decllist *lp;
-                lp = &l;
+                struct decllist *p;
+                p = &l;
                 while (!peek(IN)) {
-                        lp->next = safe_malloc(sizeof(struct decllist));
-                        lp->next->decl = parse_top_level();
-                        lp = lp->next;
-                } lp->next = NULL;
+                        p->next = safe_malloc(sizeof(struct decllist));
+                        p->next->decl = parse_top_level();
+                        p = p->next;
+                } p->next = NULL;
                 expr->letin.decl = l.next;
                 expr->letin.expr = parse_body();
                 expr->type = LETIN;
@@ -288,18 +315,18 @@ struct elist *
 parse_body()
 {
         struct elist body;
-        struct elist *bp;
+        struct elist *p;
         unsigned int loop;
 
         loop = 1;
-        bp = &body;
-        while (loop) {
-                bp->next = safe_malloc(sizeof(struct elist));
-                bp->next->expr = *parse_add();
-                bp = bp->next;
+        p = &body;
+        for(;;) {
+                p->next = safe_malloc(sizeof(struct elist));
+                p->next->expr = *parse_add();
+                p = p->next;
                 if (act_token().type == SEMICOL) next_token();
-                else loop = 0;
-        } bp->next = NULL;
+                else break;
+        } p->next = NULL;
         return body.next;
 }
 
@@ -351,25 +378,25 @@ parse_top_level()
 
         tok = next_token();
         if (tok.type == IDE) {
-                char *name = safe_malloc(strlen(tok.str) + 1);
-                strcpy(name, tok.str);
+                char *name = tok.str;
                 tok = next_token();
                 if (tok.type == LPARENT) {
                         struct elist args;
-                        struct elist *pt;
+                        struct elist *p;
                         decl.fun_decl.name = name;
-                        pt = &args;
+                        p = &args;
                         args.next = NULL;
                         while (!peek(RPARENT)) {
-                                pt->next = safe_malloc(sizeof(struct elist));
-                                pt->next->expr = *parse_expr();
-                                if (pt->next->expr.type != VAR)
+                                p->next = safe_malloc(sizeof(struct elist));
+                                p->next->expr = *parse_expr();
+                                if (p->next->expr.type != VAR)
                                         error("Unexpected token.", act_token().linum,
                                               act_token().cpos, SYNTAX_ERROR);
-                                pt = pt->next;
+                                p = p->next;
                                 if (act_token().type != RPARENT)
                                         assert(COL);
                         } assert(ARR);
+                        p->next = NULL;
                         decl.type = FUN_DECL;
                         decl.fun_decl.args = args.next;
                         decl.fun_decl.body = parse_body();
@@ -397,6 +424,7 @@ parse_program()
                 p->next->decl = parse_top_level();
                 p = p->next;
         } while (!peek(END));
+        p->next = NULL;
         return decls.next;
 }
 
@@ -1208,6 +1236,7 @@ compile_body(struct elist *body, SContext *ctx)
 
         while (body) {
                 s = compile_expr(body->expr, ctx);
+                if (body->next) free_reg(s);
                 body = body->next;
         } return s;
 }
@@ -1291,6 +1320,7 @@ program(char *prog)
         printf("mov rdi, [main]\n");
         printf("%s", epilog);
         compile_bss();
+        free_all();
 }
 
 int
