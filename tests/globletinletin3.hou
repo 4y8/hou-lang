@@ -1,0 +1,2 @@
+a = let b = 3 in b
+main = let b = a in b

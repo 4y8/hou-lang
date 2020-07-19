@@ -1,0 +1,2 @@
+a = let b = 7 in b
+main = a

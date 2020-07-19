@@ -1,0 +1,6 @@
+main = 
+	let
+	    id(a) -> a
+	    comp(f, x) -> f(x)
+	in
+	comp(id, 0)

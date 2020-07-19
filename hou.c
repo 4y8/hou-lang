@@ -750,8 +750,7 @@ infer_body(struct elist *body, Context *ctx)
                 app_subst_ctx(tp.subst, ctx);
                 tp.type = inf.type;
                 body = body->next;
-        }
-        return tp;
+        } return tp;
 }
 
 Context *
@@ -781,17 +780,6 @@ print_elist(struct elist elist, int tab)
         while (p) {
                 print_expr(p->expr, tab);
                 p = p->next;
-        }
-}
-
-void
-print_slist(struct slist *slist, int tab)
-{
-
-        while (slist) {
-                print_tab(tab);
-                printf("%s\n", slist->str);
-                slist = slist->next;
         }
 }
 
@@ -942,6 +930,9 @@ char *registers[NREG] = {
 };
 
 BSSTable *bss_table;
+BSSTable *bss_table;
+FreeBSSTable *free_bss_table;
+int ndecl = -1;
 
 void
 add_bss(char *name, int size)
@@ -961,6 +952,33 @@ add_bss(char *name, int size)
         nbss_table->size = size;
         nbss_table->next = bss_table;
         bss_table = nbss_table;
+}
+
+void
+free_bss(char *name, int size)
+{
+        FreeBSSTable *nf_table;
+
+        nf_table = malloc(sizeof(FreeBSSTable));
+        *nf_table = (FreeBSSTable){.size = size, .name = name,
+                                   .next = free_bss_table};
+        free_bss_table = nf_table;
+}
+
+char *
+alloc_bss(int size)
+{
+        char *name;
+
+        if (free_bss_table && free_bss_table->size == size) {
+                name = free_bss_table->name;
+                free_bss_table = free_bss_table->next;
+                return name;
+        }
+        name = malloc(256);
+        sprintf(name, "__bss_%d", ++ndecl);
+        add_bss(name, size);
+        return name;
 }
 
 int
@@ -985,17 +1003,13 @@ free_reg(char *reg)
                 }
 }
 
-int ndecl = -1;
-
 SContext *
 add_sctx(SContext *ctx, char *name, int num)
 {
         SContext *nctx;
 
         nctx = malloc(sizeof(SContext));
-        nctx->next = ctx;
-        nctx->name = name;
-        nctx->num = num;
+        *nctx = (SContext){.next = ctx, .name = name, .num = num};
         return nctx;
 }
 
@@ -1055,18 +1069,27 @@ compile_expr(Expr e, SContext *ctx)
                 return registers[reg];
         case LETIN: {
                 struct decllist *p = e.letin.decl;
+                FreeBSSTable *f_table = NULL;
                 int length = 0;
                 while (p) {
-                        char s[64];
-                        sprintf(s, "__decl%d", ++ndecl);
+                        char *s = alloc_bss(8);
+                        FreeBSSTable *nf_table = malloc(sizeof(FreeBSSTable));
+                        *nf_table = (FreeBSSTable){.name = s, .size = 8, .next = f_table};
+                        f_table = nf_table;
+
                         compile_decl(p->decl, ctx, s);
                         ctx = add_sctx(ctx, decl_name(p->decl), ++nvar);
+
                         printf("push QWORD [%s]\n", s);
                         p = p->next;
                         ++length;
                 } char *reg = compile_body(e.letin.expr, ctx);
                 printf("add rsp, %d\n", length << 3);
                 nvar -= length;
+                while (f_table) {
+                        free_bss(f_table->name, f_table->size);
+                        f_table = f_table->next;
+                }
                 return reg;
         }
         case FUN_CALL: {

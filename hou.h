@@ -39,10 +39,7 @@ struct expr {
                         struct expr *right;
                         enum { OP_PLUS, OP_MINUS, OP_TIMES, OP_DIVISE } op;
                 } binop;
-                union {
-                        char *var;
-                        int deb_var;
-                };
+                char *var;
                 int num;
         };
         enum { FUN_CALL, INT, VAR, LETIN, BINOP } type;
@@ -138,6 +135,12 @@ typedef struct bss_elem {
         struct bss_elem *next;
 } BSSTable;
 
+typedef struct free_bss_elem {
+        char *name;
+        int size;
+        struct free_bss_elem *next;
+} FreeBSSTable;
+
 typedef enum { TYPE_ERROR, UNEXPECTED_CHAR, SYNTAX_ERROR } Error;
 int punct_to_token(char);
 int keyword_to_token(char *);
@@ -152,7 +155,7 @@ Token act_token();
 int peek(unsigned int);
 
 Expr *parse_expr();
-Expr *parse_op(Expr * (*)(), unsigned int, unsigned int, unsigned int,
+Expr *parse_op(Expr *(*)(), unsigned int, unsigned int, unsigned int,
                unsigned int);
 Expr *parse_add();
 Expr *parse_mul();
@@ -174,9 +177,9 @@ Scheme app_subst_sch(Scheme, Subst *);
 Subst *compose_subst(Subst *, Subst *);
 Scheme find_ctx(char *, Context *);
 
-TypeReturn infer(struct expr, Context *);
+TypeReturn infer(Expr, Context *);
 TypeReturn infer_args(struct elist *, Context *);
-TypeReturn infer_decl(struct decl, Context *);
+TypeReturn infer_decl(Decl, Context *);
 TypeReturn infer_body(struct elist *, Context *);
 Context *infer_decls(struct decllist *, Context *);
 
@@ -193,7 +196,7 @@ void error(char *, int, int, Error);
 void print_token(Token);
 void print_expr(struct expr, int);
 void print_elist(struct elist, int);
-void print_decl(struct decl, int);
+void print_decl(Decl, int);
 void print_decllist(struct decllist *, int);
 void print_type(Type);
 
