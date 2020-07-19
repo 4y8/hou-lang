@@ -162,6 +162,9 @@ lexer()
                                 if (*(++s) == '>') {
                                         tok = token(ARR);
                                         ++cpos;
+                                } else if (*s == '-') {
+                                        while(*(++s) != '\n' && *s != 0);
+                                        return lexer();
                                 } else {
                                         --s;
                                         tok = token(MINUS);
