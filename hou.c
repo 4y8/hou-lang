@@ -974,8 +974,7 @@ alloc_bss(int size)
                 name = free_bss_table->name;
                 free_bss_table = free_bss_table->next;
                 return name;
-        }
-        name = malloc(256);
+        } name = malloc(256);
         sprintf(name, "__bss_%d", ++ndecl);
         add_bss(name, size);
         return name;
@@ -1024,6 +1023,25 @@ compile_expr(Expr e, SContext *ctx)
                 return registers[reg];
         }
         case BINOP: {
+                if (e.binop.right->type == INT && e.binop.right->num == 0)
+                        switch(e.binop.op) {
+                        case OP_PLUS: /* FALLTHROUGH */
+                        case OP_MINUS: return compile_expr(*e.binop.left, ctx);
+                        case OP_TIMES:
+                                return compile_expr((Expr){.type = INT,
+                                                        .num = 0}, ctx);
+                        case OP_DIVISE:
+                                error("Division by zero.", e.linum, e.cpos,
+                                      SYNTAX_ERROR);
+                        }
+                if (e.binop.left->type == INT && e.binop.left->num == 0)
+                        switch(e.binop.op) {
+                        case OP_PLUS: return compile_expr(*e.binop.right, ctx);
+                        case OP_TIMES:
+                                return compile_expr((Expr){.type = INT,
+                                                        .num = 0}, ctx);
+                        default: break;
+                        }
                 char *regl = compile_expr(*e.binop.left, ctx);
                 char *regr = compile_expr(*e.binop.right, ctx);
                 switch (e.binop.op) {
