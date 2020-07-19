@@ -106,10 +106,8 @@ error(char *msg, int linum, int cpos, Error err_code)
 Token
 token(unsigned int type)
 {
-        Token t;
 
-        t = (Token){.type = type, .linum = linum, .cpos = cpos};
-        return t;
+        return (Token){.type = type, .linum = linum, .cpos = cpos};
 }
 
 Token
@@ -164,6 +162,7 @@ lexer()
                         ++cpos;
                 } str  = safe_malloc((i + 1) * sizeof(char));
                 strncpy(str, s - i, i);
+                str[i] = 0;
                 tok = token_num(atoi(str));
                 --cpos;
         } else {
@@ -239,28 +238,27 @@ parse_expr()
         Token tok;
 
         tok   = next_token();
-        expr  = safe_malloc(sizeof(struct expr));
+        expr  = safe_malloc(sizeof(Expr));
         *expr = (Expr){.linum = tok.linum, .cpos = tok.cpos,
                        .abspos = tok.abspos};
         switch (tok.type) {
         case IDE: {
-                char *name = safe_malloc(strlen(tok.str) + 1);
-                strcpy(name, tok.str);
+                char *name = tok.str;
                 tok = next_token();
                 switch (tok.type) {
                 case LPARENT: {
                         struct elist args;
-                        struct elist *pt;
+                        struct elist *p;
                         expr->fun_call.fun = safe_malloc(sizeof(Expr));
                         *expr->fun_call.fun = (Expr){.type = VAR, .var = name};
-                        pt = &args;
+                        p = &args;
                         while (!peek(RPARENT)) {
-                                pt->next = safe_malloc(sizeof(struct elist));
-                                pt->next->expr = *parse_add();
-                                pt = pt->next;
+                                p->next = safe_malloc(sizeof(struct elist));
+                                p->next->expr = *parse_add();
+                                p = p->next;
                                 if (!peek(RPARENT)) assert(COL);
                                 else unused_tok = token(RPARENT);
-                        } pt->next = NULL;
+                        } p->next = NULL;
                         expr->type = FUN_CALL;
                         expr->fun_call.args = args.next;
                         break;
@@ -277,13 +275,13 @@ parse_expr()
                 break;
         case LET: {
                 struct decllist l;
-                struct decllist *lp;
-                lp = &l;
+                struct decllist *p;
+                p = &l;
                 while (!peek(IN)) {
-                        lp->next = safe_malloc(sizeof(struct decllist));
-                        lp->next->decl = parse_top_level();
-                        lp = lp->next;
-                } lp->next = NULL;
+                        p->next = safe_malloc(sizeof(struct decllist));
+                        p->next->decl = parse_top_level();
+                        p = p->next;
+                } p->next = NULL;
                 expr->letin.decl = l.next;
                 expr->letin.expr = parse_body();
                 expr->type = LETIN;
@@ -301,18 +299,18 @@ struct elist *
 parse_body()
 {
         struct elist body;
-        struct elist *bp;
+        struct elist *p;
         unsigned int loop;
 
         loop = 1;
-        bp = &body;
-        while (loop) {
-                bp->next = safe_malloc(sizeof(struct elist));
-                bp->next->expr = *parse_add();
-                bp = bp->next;
+        p = &body;
+        for(;;) {
+                p->next = safe_malloc(sizeof(struct elist));
+                p->next->expr = *parse_add();
+                p = p->next;
                 if (act_token().type == SEMICOL) next_token();
-                else loop = 0;
-        } bp->next = NULL;
+                else break;
+        } p->next = NULL;
         return body.next;
 }
 
@@ -364,8 +362,7 @@ parse_top_level()
 
         tok = next_token();
         if (tok.type == IDE) {
-                char *name = safe_malloc(strlen(tok.str) + 1);
-                strcpy(name, tok.str);
+                char *name = tok.str;
                 tok = next_token();
                 if (tok.type == LPARENT) {
                         struct elist args;
@@ -1223,6 +1220,7 @@ compile_body(struct elist *body, SContext *ctx)
 
         while (body) {
                 s = compile_expr(body->expr, ctx);
+                if (body->next) free_reg(s);
                 body = body->next;
         } return s;
 }
