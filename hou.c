@@ -117,6 +117,22 @@ token_num(int num)
 
 char *s;
 
+char *
+lex_while(int (*fun)(int))
+{
+        char *str;
+        int i;
+
+        i = 1;
+        while (fun(*(++s))) {
+                ++i;
+                ++cpos;
+        } str = safe_malloc((i + 1) * sizeof(char));
+        strncpy(str, s - i, i);
+        str[i] = 0;
+        return str;
+}
+
 Token
 lexer()
 {
@@ -126,27 +142,13 @@ lexer()
         tpos   = -1;
         if (*s == 0) return token(END);
         if (isalpha(*s)) {
-                int   i = 1;
-                char *str;
-                while (isalpha(*(++s))) {
-                        ++i;
-                        ++cpos;
-                } str = safe_malloc((i + 1) * sizeof(char));
-                strncpy(str, s - i, i);
-                str[i] = 0;
-                i = keyword_to_token(str);
+                char *str = lex_while(isalpha);
+                int i = keyword_to_token(str);
                 if (i == -1) tok = token_str(str);
                 else tok = token(i);
                 --cpos;
         } else if (isdigit(*s)) {
-                int   i = 1;
-                char *str;
-                while (isdigit(*(++s))) {
-                        ++i;
-                        ++cpos;
-                } str  = safe_malloc((i + 1) * sizeof(char));
-                strncpy(str, s - i, i);
-                tok = token_num(atoi(str));
+                tok = token_num(atoi(lex_while(isdigit)));
                 --cpos;
         } else {
                 int i = punct_to_token(*s);
