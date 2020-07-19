@@ -19,19 +19,36 @@ PuncToken punctuation[NPUNCT] = {
         {TIMES, '*'}, {LPARENT, '('}, {RPARENT, ')'}, {EQUAL, '='}
 };
 
+MemoryTable *mem = NULL;
+
 void *
 safe_malloc(size_t size)
 {
         void *p;
+        MemoryTable *nmem;
 
         p = malloc(size);
         if (!p) error("Can't allocate memory.", 0, 0, SYNTAX_ERROR);
+        nmem = malloc(sizeof(MemoryTable));
+        if (!nmem) error("Can't allocate memory.", 0, 0, SYNTAX_ERROR);
+        *nmem = (MemoryTable){.next = mem, .p = p};
+        mem = nmem;
         return p;
 }
 
 void
 free_all()
 {
+        MemoryTable *p;
+        MemoryTable *prev;
+
+        p = mem;
+        while (p) {
+                prev = p->next;
+                free(p->p);
+                free(p);
+                p = prev;
+        }
 
 }
 
@@ -65,23 +82,24 @@ error(char *msg, int linum, int cpos, Error err_code)
         switch(err_code) {
         case UNEXPECTED_CHAR:
                 header_size = 21;
-                err_header = safe_malloc(header_size * sizeof(char));
+                err_header = safe_malloc(header_size);
                 strncpy(err_header, "UNEXPECTED CHARACTER ", header_size);
                 break;
         case TYPE_ERROR:
                 header_size = 11;
-                err_header = safe_malloc(header_size * sizeof(char));
+                err_header = safe_malloc(header_size);
                 strncpy(err_header, "TYPE ERROR ", header_size);
                 break;
         case SYNTAX_ERROR:
                 header_size = 13;
-                err_header = safe_malloc(header_size * sizeof(char));
+                err_header = safe_malloc(header_size);
                 strncpy(err_header, "SYNTAX ERROR ", header_size);
                 break;
         } printf("\033[35m\033[1m-- ");
         printf("%s", err_header);
         for (int i = 0; i < 77 - header_size; i++) printf("-");
         printf("\n\n\033[39m\033[1m%d:%d: %s\n", linum, cpos, msg);
+        free_all();
         exit(1);
 }
 
@@ -351,20 +369,21 @@ parse_top_level()
                 tok = next_token();
                 if (tok.type == LPARENT) {
                         struct elist args;
-                        struct elist *pt;
+                        struct elist *p;
                         decl.fun_decl.name = name;
-                        pt = &args;
+                        p = &args;
                         args.next = NULL;
                         while (!peek(RPARENT)) {
-                                pt->next = safe_malloc(sizeof(struct elist));
-                                pt->next->expr = *parse_expr();
-                                if (pt->next->expr.type != VAR)
+                                p->next = safe_malloc(sizeof(struct elist));
+                                p->next->expr = *parse_expr();
+                                if (p->next->expr.type != VAR)
                                         error("Unexpected token.", act_token().linum,
                                               act_token().cpos, SYNTAX_ERROR);
-                                pt = pt->next;
+                                p = p->next;
                                 if (act_token().type != RPARENT)
                                         assert(COL);
                         } assert(ARR);
+                        p->next = NULL;
                         decl.type = FUN_DECL;
                         decl.fun_decl.args = args.next;
                         decl.fun_decl.body = parse_body();
@@ -392,6 +411,7 @@ parse_program()
                 p->next->decl = parse_top_level();
                 p = p->next;
         } while (!peek(END));
+        p->next = NULL;
         return decls.next;
 }
 
@@ -1286,6 +1306,7 @@ program(char *prog)
         printf("mov rdi, [main]\n");
         printf("%s", epilog);
         compile_bss();
+        free_all();
 }
 
 int
