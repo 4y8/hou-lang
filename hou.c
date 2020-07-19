@@ -11,8 +11,9 @@
 unsigned int linum;
 unsigned int cpos;
 unsigned int nvar = 0;
-KeywordToken keywords[NKEYWORD] = {{LET, "let"}, {IN, "in"}, {IF, "if"},
-                                   {ELIF, "elif"}, {ELSE, "else"}};
+KeywordToken keywords[NKEYWORD] = {
+        {LET, "let"}, {IN, "in"}, {IF, "if"}, {ELIF, "elif"}, {ELSE, "else"}
+};
 PuncToken punctuation[NPUNCT] = {
         {DOT, '.'}, {COL, ','}, {DIVISE, '/'}, {SEMICOL, ';'}, {PLUS, '+'},
         {TIMES, '*'}, {LPARENT, '('}, {RPARENT, ')'}, {EQUAL, '='}
@@ -61,8 +62,7 @@ error(char *msg, int linum, int cpos, Error err_code)
                 err_header = malloc(header_size * sizeof(char));
                 strncpy(err_header, "SYNTAX ERROR ", header_size);
                 break;
-        }
-        printf("\033[35m\033[1m-- ");
+        } printf("\033[35m\033[1m-- ");
         printf("%s", err_header);
         for (int i = 0; i < 77 - header_size; i++) printf("-");
         free(err_header);
@@ -205,11 +205,10 @@ parse_expr()
         Expr *expr;
         Token tok;
 
-        tok          = next_token();
-        expr         = malloc(sizeof(struct expr));
-        expr->linum  = tok.linum;
-        expr->cpos   = tok.cpos;
-        expr->abspos = tok.abspos;
+        tok   = next_token();
+        expr  = malloc(sizeof(struct expr));
+        *expr = (Expr){.linum = tok.linum, .cpos = tok.cpos,
+                       .abspos = tok.abspos};
         switch (tok.type) {
         case IDE: {
                 char *name = malloc(strlen(tok.str) + 1);
@@ -221,8 +220,7 @@ parse_expr()
                         struct elist args;
                         struct elist *pt;
                         expr->fun_call.fun = malloc(sizeof(Expr));
-                        expr->fun_call.fun->type = VAR;
-                        expr->fun_call.fun->var = name;
+                        *expr->fun_call.fun = (Expr){.type = VAR, .var = name};
                         pt = &args;
                         while (!peek(RPARENT)) {
                                 pt->next = malloc(sizeof(struct elist));
@@ -442,11 +440,8 @@ bind(unsigned int var, Type *t)
                                              TYPE_ERROR);
         else {
                 s = malloc(sizeof(Subst));
-                s->t = t;
-                s->next = NULL;
-                s->nvar = var;
-        }
-        return s;
+                *s = (Subst){.t = t, .next = NULL, .nvar = var};
+        } return s;
 }
 
 Type *
@@ -455,9 +450,7 @@ tfun(Type *left, Type *right)
         Type *t;
 
         t = malloc(sizeof(Type));
-        t->type = TFUN;
-        t->fun.right = right;
-        t->fun.left = left;
+        *t = (Type){.type = TFUN, .fun.right = right, .fun.left = left};
         return t;
 }
 
@@ -477,8 +470,7 @@ tvar(unsigned int var)
         Type *t;
 
         t = malloc(sizeof(Type));
-        t->var = var;
-        t->type = TVAR;
+        *t = (Type){.type = TVAR, .var = var};
         return t;
 }
 
@@ -488,8 +480,7 @@ tlit(char *name)
         Type *t;
 
         t = malloc(sizeof(Type));
-        t->lit = name;
-        t->type = TLIT;
+        *t = (Type){.lit = name, .type = TLIT};
         return t;
 }
 
@@ -515,18 +506,15 @@ app_subst_sch(Scheme sch, Subst *s)
 
         p = s;
         while (p) {
-                if (occurs(sch.bind, s->nvar)) {
-                        if (s->next) {
-                                s->nvar = s->next->nvar;
-                                s->t = s->next->t;
-                                s->nvar = s->next->nvar;
-                        }
-                        else s->nvar = -1;
+                if (occurs(sch.bind, p->nvar)) {
+                        if (p->next) {
+                                p->nvar = p->next->nvar;
+                                p->t = p->next->t;
+                                p->nvar = p->next->nvar;
+                        } else s->nvar = -1;
                         continue;
-                }
-                p = p->next;
-        }
-        sch.type = app_subst(sch.type, s);
+                } p = p->next;
+        } sch.type = app_subst(sch.type, s);
         return sch;
 }
 
@@ -543,11 +531,8 @@ compose_subst(Subst *s1, Subst *s2)
                 if (p->next == NULL) {
                         p->next = s1;
                         return s2;
-                }
-                p = p->next;
-
-        }
-        return s2;
+                } p = p->next;
+        } return s2;
 }
 
 Subst *
@@ -605,18 +590,14 @@ inst(Scheme sch)
                 s.t = tvar(++nvar);
                 p = p->next;
                 t = app_subst(t, &s);
-        }
-        return t;
+        } return t;
 }
 
 Scheme
 gen(Type *t)
 {
-        Scheme sch;
 
-        sch.type = t;
-        sch.bind = ftv(t);
-        return sch;
+        return (Scheme){.type = t, .bind = ftv(t)};
 }
 
 Type *
@@ -632,14 +613,6 @@ add_tfun(Type *t1, Type *t2)
         } else return tfun(t1, t2);
 }
 
-struct elist *
-clean_dummy_var(struct elist *args)
-{
-
-        if (args->expr.type == VAR && !strcmp(args->expr.var, "@")) return NULL;
-        return args;
-}
-
 char *
 decl_name(Decl decl)
 {
@@ -649,7 +622,7 @@ decl_name(Decl decl)
 }
 
 TypeReturn
-infer(struct expr expr, Context *ctx)
+infer(Expr expr, Context *ctx)
 {
         TypeReturn tp;
 
@@ -677,14 +650,14 @@ infer(struct expr expr, Context *ctx)
                 app_subst_ctx(ft.subst, ctx);
                 TypeReturn args = infer_args(expr.fun_call.args, ctx);
                 TypeReturn at = infer_args(expr.fun_call.args, ctx);
-                int save_nvar = nvar + 1;
+                Type *s_type = tvar(++nvar);
                 if (!expr.fun_call.args)
-                        at.type = tfun(tlit("unit"), tvar(++nvar));
+                        at.type = tfun(tlit("unit"), s_type);
                 else
-                        at.type = add_tfun(at.type, tvar(++nvar));
+                        at.type = add_tfun(at.type, s_type);
                 Subst *s = unify(at.type, ft.type);
                 s = compose_subst(ft.subst, s);
-                tp.type = app_subst(tvar(save_nvar), s);
+                tp.type = app_subst(s_type, s);
                 tp.subst = s;
                 break;
         }
@@ -707,12 +680,8 @@ infer_args(struct elist *args, Context *ctx)
                 if (rest.type) {
                         tp.type  = tfun(arg.type, rest.type);
                         tp.subst = compose_subst(arg.subst, rest.subst);
-                } else {
-                        tp.type  = arg.type;
-                        tp.subst = arg.subst;
-                }
-        }
-        return tp;
+                } else tp = arg;
+        } return tp;
 
 }
 
@@ -737,7 +706,7 @@ add_ctx(Context *ctx, char *name, Scheme sch)
 }
 
 TypeReturn
-infer_decl(struct decl decl, Context *ctx)
+infer_decl(Decl decl, Context *ctx)
 {
         TypeReturn tp;
 
@@ -748,7 +717,8 @@ infer_decl(struct decl decl, Context *ctx)
                 break;
         case FUN_DECL: {
                 struct elist *p = decl.fun_decl.args;
-                ctx = add_ctx(ctx, decl_name(decl), scheme(NULL, tvar(++nvar)));
+                Type *decl_type = tvar(++nvar);
+                ctx = add_ctx(ctx, decl_name(decl), scheme(NULL, decl_type));
                 while (p) {
                         ctx = add_ctx(ctx, p->expr.var,
                                       scheme(NULL, tvar(++nvar)));
@@ -760,6 +730,7 @@ infer_decl(struct decl decl, Context *ctx)
                 TypeReturn at = infer_args(decl.fun_decl.args, ctx);
                 if (!p) at.type = tfun(tlit("unit"), bt.type);
                 else    at.type = add_tfun(at.type, bt.type);
+                at.type = app_subst(at.type, unify(decl_type, at.type));
                 tp.type = app_subst(at.type, bt.subst);
                 break;
         }
@@ -788,12 +759,8 @@ infer_decls(struct decllist *decls, Context *ctx)
 {
 
         while (decls) {
-                Context *nctx = malloc(sizeof(struct decllist));
                 TypeReturn dt = infer_decl(decls->decl, ctx);
-                nctx->name = decl_name(decls->decl);
-                nctx->sch = gen(dt.type);
-                nctx->next = ctx;
-                ctx = nctx;
+                ctx = add_ctx(ctx, decl_name(decls->decl), gen(dt.type));
                 decls = decls->next;
         } return ctx;
 }

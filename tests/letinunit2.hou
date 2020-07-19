@@ -1,0 +1,1 @@
+main = let void() -> 2 in void()
