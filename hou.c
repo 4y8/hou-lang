@@ -226,7 +226,7 @@ parse_expr()
                         pt = &args;
                         while (!peek(RPARENT)) {
                                 pt->next = malloc(sizeof(struct elist));
-                                pt->next->expr = *parse_expr();
+                                pt->next->expr = *parse_add();
                                 pt = pt->next;
                                 if (!peek(RPARENT)) assert(COL);
                                 else unused_tok = token(RPARENT);
@@ -716,6 +716,26 @@ infer_args(struct elist *args, Context *ctx)
 
 }
 
+Scheme
+scheme(struct ilist *bind, Type *type)
+{
+
+        return (Scheme){.bind = bind, .type = type};
+}
+
+Context *
+add_ctx(Context *ctx, char *name, Scheme sch)
+{
+        Context *nctx;
+
+        nctx = malloc(sizeof(Context));
+        nctx->name = malloc(strlen(name) + 1);
+        strcpy(nctx->name, name);
+        nctx->sch = sch;
+        nctx->next = ctx;
+        return nctx;
+}
+
 TypeReturn
 infer_decl(struct decl decl, Context *ctx)
 {
@@ -728,13 +748,10 @@ infer_decl(struct decl decl, Context *ctx)
                 break;
         case FUN_DECL: {
                 struct elist *p = decl.fun_decl.args;
+                ctx = add_ctx(ctx, decl_name(decl), scheme(NULL, tvar(++nvar)));
                 while (p) {
-                        Context *nctx = malloc(sizeof(Context));
-                        nctx->name = p->expr.var;
-                        nctx->sch.bind = NULL;
-                        nctx->sch.type = tvar(++nvar);
-                        nctx->next = ctx;
-                        ctx = nctx;
+                        ctx = add_ctx(ctx, p->expr.var,
+                                      scheme(NULL, tvar(++nvar)));
                         p = p->next;
                 } TypeReturn bt = infer_body(decl.fun_decl.body, ctx);
                 app_subst_ctx(bt.subst, ctx);
@@ -1024,7 +1041,6 @@ compile_expr(Expr e, SContext *ctx)
                 int reg = alloc_reg();
                 printf("mov %s, %d\n", registers[reg], e.num);
                 return registers[reg];
-                break;
         }
         case BINOP: {
                 char *regl = compile_expr(*e.binop.left, ctx);
@@ -1058,7 +1074,6 @@ compile_expr(Expr e, SContext *ctx)
                 }
                 } free_reg(regr);
                 return regl;
-                break;
         }
         case VAR:
                 while (ctx) {
@@ -1071,7 +1086,6 @@ compile_expr(Expr e, SContext *ctx)
                 } int reg = alloc_reg();
                 printf("mov %s, [%s]\n", registers[reg], e.var);
                 return registers[reg];
-                break;
         case LETIN: {
                 struct decllist *p = e.letin.decl;
                 int length = 0;
