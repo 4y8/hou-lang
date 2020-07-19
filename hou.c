@@ -1012,6 +1012,20 @@ add_sctx(SContext *ctx, char *name, int num)
         return nctx;
 }
 
+int
+is_power_of2(int n)
+{
+        int i;
+
+        if (n == 0) return -1;
+        i = 0;
+        while (n != 1) {
+                if (n%2 != 0) return -1;
+                n >>= 1;
+                ++i;
+        } return i;
+}
+
 char *
 compile_expr(Expr e, SContext *ctx)
 {
@@ -1036,8 +1050,21 @@ compile_expr(Expr e, SContext *ctx)
                                         error("Division by zero.", e.linum, e.cpos,
                                               SYNTAX_ERROR);
                                 }
-                }
-                if (e.binop.left->type == INT) {
+                        int n = is_power_of2(e.binop.right->num);
+                        if (n != -1) {
+                                if (e.binop.op == OP_TIMES) {
+                                        char *reg = compile_expr(*e.binop.left,
+                                                                 ctx);
+                                        printf("shl %s, %d\n", reg, n);
+                                        return reg;
+                                } if (e.binop.op == OP_DIVISE) {
+                                        char *reg = compile_expr(*e.binop.left,
+                                                                 ctx);
+                                        printf("shr %s, %d\n", reg, n);
+                                        return reg;
+                                }
+                        }
+                } if (e.binop.left->type == INT) {
                         if (e.binop.left->num == 0)
                                 switch(e.binop.op) {
                                 case OP_PLUS:
@@ -1047,6 +1074,13 @@ compile_expr(Expr e, SContext *ctx)
                                                                 .num = 0}, ctx);
                                 default: break;
                                 }
+                        int n = is_power_of2(e.binop.left->num);
+                        if (n != -1 && e.binop.op == OP_TIMES) {
+                                char *reg = compile_expr(*e.binop.right,
+                                                         ctx);
+                                printf("shl %s, %d\n", reg, n);
+                                return reg;
+                        }
                 } char *regl = compile_expr(*e.binop.left, ctx);
                 char *regr = compile_expr(*e.binop.right, ctx);
                 switch (e.binop.op) {
@@ -1214,12 +1248,12 @@ compile_decls(struct decllist *decls)
         }
 }
 
-char *prelude =
+char *prolog =
         "global _start\n"
         "section .text\n"
         "_start:\n";
 
-char *conclusion =
+char *epilog =
         "mov rax, 60\n"
         "syscall\n";
 
@@ -1233,10 +1267,10 @@ program(char *prog)
         cpos  = 0;
         decl  = parse_program();
         infer_decls(decl, NULL);
-        printf("%s", prelude);
+        printf("%s", prolog);
         compile_decls(decl);
         printf("mov rdi, [main]\n");
-        printf("%s", conclusion);
+        printf("%s", epilog);
         compile_bss();
 }
 
