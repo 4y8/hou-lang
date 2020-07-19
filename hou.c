@@ -146,6 +146,7 @@ lex_while(int (*fun)(int))
         } str = safe_malloc((i + 1) * sizeof(char));
         strncpy(str, s - i, i);
         str[i] = 0;
+        --cpos;
         return str;
 }
 
@@ -162,22 +163,8 @@ lexer()
                 int i = keyword_to_token(str);
                 if (i == -1) tok = token_str(str);
                 else tok = token(i);
-                --cpos;
         } else if (isdigit(*s)) {
-<<<<<<< HEAD
                 tok = token_num(atoi(lex_while(isdigit)));
-=======
-                int   i = 1;
-                char *str;
-                while (isdigit(*(++s))) {
-                        ++i;
-                        ++cpos;
-                } str  = safe_malloc((i + 1) * sizeof(char));
-                strncpy(str, s - i, i);
-                str[i] = 0;
-                tok = token_num(atoi(str));
->>>>>>> 7310951a37e8b9bac9fb6512b1b8cbf40f332214
-                --cpos;
         } else {
                 int i = punct_to_token(*s);
                 if (i != -1) tok = token(i);
