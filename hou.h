@@ -141,6 +141,11 @@ typedef struct free_bss_elem {
         struct free_bss_elem *next;
 } FreeBSSTable;
 
+typedef struct mem_elem {
+        void *p;
+        struct mem_elem *next;
+} MemoryTable;
+
 typedef enum { TYPE_ERROR, UNEXPECTED_CHAR, SYNTAX_ERROR } Error;
 int punct_to_token(char);
 int keyword_to_token(char *);

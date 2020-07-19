@@ -19,6 +19,22 @@ PuncToken punctuation[NPUNCT] = {
         {TIMES, '*'}, {LPARENT, '('}, {RPARENT, ')'}, {EQUAL, '='}
 };
 
+void *
+safe_malloc(size_t size)
+{
+        void *p;
+
+        p = malloc(size);
+        if (!p) error("Can't allocate memory.", 0, 0, SYNTAX_ERROR);
+        return p;
+}
+
+void
+free_all()
+{
+
+}
+
 int
 keyword_to_token(char *s)
 {
@@ -49,23 +65,22 @@ error(char *msg, int linum, int cpos, Error err_code)
         switch(err_code) {
         case UNEXPECTED_CHAR:
                 header_size = 21;
-                err_header = malloc(header_size * sizeof(char));
+                err_header = safe_malloc(header_size * sizeof(char));
                 strncpy(err_header, "UNEXPECTED CHARACTER ", header_size);
                 break;
         case TYPE_ERROR:
                 header_size = 11;
-                err_header = malloc(header_size * sizeof(char));
+                err_header = safe_malloc(header_size * sizeof(char));
                 strncpy(err_header, "TYPE ERROR ", header_size);
                 break;
         case SYNTAX_ERROR:
                 header_size = 13;
-                err_header = malloc(header_size * sizeof(char));
+                err_header = safe_malloc(header_size * sizeof(char));
                 strncpy(err_header, "SYNTAX ERROR ", header_size);
                 break;
         } printf("\033[35m\033[1m-- ");
         printf("%s", err_header);
         for (int i = 0; i < 77 - header_size; i++) printf("-");
-        free(err_header);
         printf("\n\n\033[39m\033[1m%d:%d: %s\n", linum, cpos, msg);
         exit(1);
 }
@@ -116,7 +131,7 @@ lexer()
                 while (isalpha(*(++s))) {
                         ++i;
                         ++cpos;
-                } str = malloc((i + 1) * sizeof(char));
+                } str = safe_malloc((i + 1) * sizeof(char));
                 strncpy(str, s - i, i);
                 str[i] = 0;
                 i = keyword_to_token(str);
@@ -129,7 +144,7 @@ lexer()
                 while (isdigit(*(++s))) {
                         ++i;
                         ++cpos;
-                } str  = malloc((i + 1) * sizeof(char));
+                } str  = safe_malloc((i + 1) * sizeof(char));
                 strncpy(str, s - i, i);
                 tok = token_num(atoi(str));
                 --cpos;
@@ -206,24 +221,23 @@ parse_expr()
         Token tok;
 
         tok   = next_token();
-        expr  = malloc(sizeof(struct expr));
+        expr  = safe_malloc(sizeof(struct expr));
         *expr = (Expr){.linum = tok.linum, .cpos = tok.cpos,
                        .abspos = tok.abspos};
         switch (tok.type) {
         case IDE: {
-                char *name = malloc(strlen(tok.str) + 1);
+                char *name = safe_malloc(strlen(tok.str) + 1);
                 strcpy(name, tok.str);
-                free(tok.str);
                 tok = next_token();
                 switch (tok.type) {
                 case LPARENT: {
                         struct elist args;
                         struct elist *pt;
-                        expr->fun_call.fun = malloc(sizeof(Expr));
+                        expr->fun_call.fun = safe_malloc(sizeof(Expr));
                         *expr->fun_call.fun = (Expr){.type = VAR, .var = name};
                         pt = &args;
                         while (!peek(RPARENT)) {
-                                pt->next = malloc(sizeof(struct elist));
+                                pt->next = safe_malloc(sizeof(struct elist));
                                 pt->next->expr = *parse_add();
                                 pt = pt->next;
                                 if (!peek(RPARENT)) assert(COL);
@@ -248,7 +262,7 @@ parse_expr()
                 struct decllist *lp;
                 lp = &l;
                 while (!peek(IN)) {
-                        lp->next = malloc(sizeof(struct decllist));
+                        lp->next = safe_malloc(sizeof(struct decllist));
                         lp->next->decl = parse_top_level();
                         lp = lp->next;
                 } lp->next = NULL;
@@ -275,7 +289,7 @@ parse_body()
         loop = 1;
         bp = &body;
         while (loop) {
-                bp->next = malloc(sizeof(struct elist));
+                bp->next = safe_malloc(sizeof(struct elist));
                 bp->next->expr = *parse_add();
                 bp = bp->next;
                 if (act_token().type == SEMICOL) next_token();
@@ -289,7 +303,7 @@ binop(struct expr *left, struct expr *right, unsigned int op)
 {
         struct expr *e;
 
-        e = malloc(sizeof(struct expr));
+        e = safe_malloc(sizeof(struct expr));
         *e = (Expr){.type = BINOP, .binop.op = op, .binop.left = left,
                     .binop.right = right};
         return e;
@@ -303,7 +317,7 @@ parse_op(Expr * (*fun)(), unsigned int op0,
         Expr *e;
 
         expr = fun();
-        e = malloc(sizeof(struct expr));
+        e = safe_malloc(sizeof(struct expr));
         e = expr;
         for (;;) {
                 if (peek(op0)) e = binop(e, fun(), op1);
@@ -332,9 +346,8 @@ parse_top_level()
 
         tok = next_token();
         if (tok.type == IDE) {
-                char *name = malloc(strlen(tok.str) + 1);
+                char *name = safe_malloc(strlen(tok.str) + 1);
                 strcpy(name, tok.str);
-                free(tok.str);
                 tok = next_token();
                 if (tok.type == LPARENT) {
                         struct elist args;
@@ -343,7 +356,7 @@ parse_top_level()
                         pt = &args;
                         args.next = NULL;
                         while (!peek(RPARENT)) {
-                                pt->next = malloc(sizeof(struct elist));
+                                pt->next = safe_malloc(sizeof(struct elist));
                                 pt->next->expr = *parse_expr();
                                 if (pt->next->expr.type != VAR)
                                         error("Unexpected token.", act_token().linum,
@@ -375,7 +388,7 @@ parse_program()
         p = &decls;
         unused_tok = token(END);
         do {
-                p->next = malloc(sizeof(struct decllist));
+                p->next = safe_malloc(sizeof(struct decllist));
                 p->next->decl = parse_top_level();
                 p = p->next;
         } while (!peek(END));
@@ -397,7 +410,7 @@ ftv(Type *t)
         case TINT:
         case TLIT: l = NULL; break;
         case TVAR:
-                l       = malloc(sizeof(struct ilist));
+                l       = safe_malloc(sizeof(struct ilist));
                 l->next = NULL;
                 l->i    = t->var;
                 break;
@@ -439,7 +452,7 @@ bind(unsigned int var, Type *t)
         else if (occurs(ftv(t), var)) error("Occurs error happend", 0, 0,
                                              TYPE_ERROR);
         else {
-                s = malloc(sizeof(Subst));
+                s = safe_malloc(sizeof(Subst));
                 *s = (Subst){.t = t, .next = NULL, .nvar = var};
         } return s;
 }
@@ -449,7 +462,7 @@ tfun(Type *left, Type *right)
 {
         Type *t;
 
-        t = malloc(sizeof(Type));
+        t = safe_malloc(sizeof(Type));
         *t = (Type){.type = TFUN, .fun.right = right, .fun.left = left};
         return t;
 }
@@ -459,7 +472,7 @@ tint()
 {
         Type *t;
 
-        t = malloc(sizeof(Type));
+        t = safe_malloc(sizeof(Type));
         t->type = TINT;
         return t;
 }
@@ -469,7 +482,7 @@ tvar(unsigned int var)
 {
         Type *t;
 
-        t = malloc(sizeof(Type));
+        t = safe_malloc(sizeof(Type));
         *t = (Type){.type = TVAR, .var = var};
         return t;
 }
@@ -479,7 +492,7 @@ tlit(char *name)
 {
         Type *t;
 
-        t = malloc(sizeof(Type));
+        t = safe_malloc(sizeof(Type));
         *t = (Type){.lit = name, .type = TLIT};
         return t;
 }
@@ -581,7 +594,7 @@ inst(Scheme sch)
         struct ilist *p;
 
         p = sch.bind;
-        t = malloc(sizeof(Type));
+        t = safe_malloc(sizeof(Type));
         *t = *sch.type;
         while (p) {
                 Subst s;
@@ -697,8 +710,8 @@ add_ctx(Context *ctx, char *name, Scheme sch)
 {
         Context *nctx;
 
-        nctx = malloc(sizeof(Context));
-        nctx->name = malloc(strlen(name) + 1);
+        nctx = safe_malloc(sizeof(Context));
+        nctx->name = safe_malloc(strlen(name) + 1);
         strcpy(nctx->name, name);
         nctx->sch = sch;
         nctx->next = ctx;
@@ -946,8 +959,8 @@ add_bss(char *name, int size)
                 if (!strcmp(name, p->name)) return;
                 p = p->next;
         }
-        nbss_table = malloc(sizeof(BSSTable));
-        nbss_table->name = malloc(64);
+        nbss_table = safe_malloc(sizeof(BSSTable));
+        nbss_table->name = safe_malloc(64);
         strncpy(nbss_table->name, name, 64);
         nbss_table->size = size;
         nbss_table->next = bss_table;
@@ -959,7 +972,7 @@ free_bss(char *name, int size)
 {
         FreeBSSTable *nf_table;
 
-        nf_table = malloc(sizeof(FreeBSSTable));
+        nf_table = safe_malloc(sizeof(FreeBSSTable));
         *nf_table = (FreeBSSTable){.size = size, .name = name,
                                    .next = free_bss_table};
         free_bss_table = nf_table;
@@ -974,7 +987,7 @@ alloc_bss(int size)
                 name = free_bss_table->name;
                 free_bss_table = free_bss_table->next;
                 return name;
-        } name = malloc(256);
+        } name = safe_malloc(256);
         sprintf(name, "__bss_%d", ++ndecl);
         add_bss(name, size);
         return name;
@@ -1007,7 +1020,7 @@ add_sctx(SContext *ctx, char *name, int num)
 {
         SContext *nctx;
 
-        nctx = malloc(sizeof(SContext));
+        nctx = safe_malloc(sizeof(SContext));
         *nctx = (SContext){.next = ctx, .name = name, .num = num};
         return nctx;
 }
@@ -1033,7 +1046,9 @@ compile_expr(Expr e, SContext *ctx)
         switch (e.type) {
         case INT: {
                 int reg = alloc_reg();
-                printf("mov %s, %d\n", registers[reg], e.num);
+                if (e.num)
+                        printf("mov %s, %d\n", registers[reg], e.num);
+                else printf("xor %s, %s\n", registers[reg], registers[reg]);
                 return registers[reg];
         }
         case BINOP: {
@@ -1098,15 +1113,14 @@ compile_expr(Expr e, SContext *ctx)
                         if (!strcmp("rdx", regr)) {
                                 reg = alloc_reg();
                                 printf("mov %s, rdx\n", registers[reg]);
-                                regr = malloc(4);
+                                regr = safe_malloc(4);
                                 strcpy(regr, registers[reg]);
-                        }
-                        printf("push rdx\n"
-                               "mov rax, %s\n"
-                               "mov rdx, 0\n"
-                               "idiv %s\n"
-                               "mov %s, rax\n"
-                               "pop rdx\n", regl, regr, regl);
+                        } printf("push rdx\n"
+                                 "mov rax, %s\n"
+                                 "xor rdx, rdx\n"
+                                 "idiv %s\n"
+                                 "mov %s, rax\n"
+                                 "pop rdx\n", regl, regr, regl);
                         if (reg != -1) used_registers[reg] = 0;
                         break;
                 }
@@ -1130,7 +1144,7 @@ compile_expr(Expr e, SContext *ctx)
                 int length = 0;
                 while (p) {
                         char *s = alloc_bss(8);
-                        FreeBSSTable *nf_table = malloc(sizeof(FreeBSSTable));
+                        FreeBSSTable *nf_table = safe_malloc(sizeof(FreeBSSTable));
                         *nf_table = (FreeBSSTable){.name = s, .size = 8, .next = f_table};
                         f_table = nf_table;
 
