@@ -298,6 +298,7 @@ parse_expr()
                                .if_clause.condition = cond,
                                .if_clause.if_expr = parse_body(),
                                .if_clause.else_expr = parse_else()};
+                break;
         }
         default:
                 error("Unexpected token .", tok.linum, tok.cpos,
@@ -705,10 +706,9 @@ infer(Expr expr, Context *ctx)
                 TypeReturn r = infer(*expr.binop.right, ctx);
                 app_subst_ctx(r.subst, ctx);
                 TypeReturn l = infer(*expr.binop.left, ctx);
-                Subst *s = compose_subst(r.subst, l.subst);
-                s = compose_subst(s, unify(l.type, tint()));
-                s = compose_subst(s, unify(r.type, tint()));
-                tp.subst = s;
+                tp.subst = compose_subst(r.subst, l.subst);
+                tp.subst = compose_subst(tp.subst, unify(l.type, tint()));
+                tp.subst = compose_subst(tp.subst, unify(r.type, tint()));
                 tp.type = tint();
                 break;
         }
@@ -722,14 +722,23 @@ infer(Expr expr, Context *ctx)
                         at.type = tfun(tlit("unit"), s_type);
                 else
                         at.type = add_tfun(at.type, s_type);
-                Subst *s = unify(at.type, ft.type);
-                s = compose_subst(ft.subst, s);
-                tp.type = app_subst(s_type, s);
-                tp.subst = s;
+                tp.subst = unify(at.type, ft.type);
+                tp.subst = compose_subst(ft.subst, tp.subst);
+                tp.type = app_subst(s_type, tp.subst);
                 break;
         }
         case LETIN: {
-                tp = infer_body(expr.letin.expr, infer_decls(expr.letin.decl, ctx));
+                tp = infer_body(expr.letin.expr,
+                                infer_decls(expr.letin.decl, ctx));
+                break;
+        }
+        case IF_CLAUSE: {
+                TypeReturn tcond = infer(*expr.if_clause.condition, ctx);
+                Subst *s = unify(tcond.type, tlit("bool"));
+                s = compose_subst(s, tcond.subst);
+                app_subst_ctx(s, ctx);
+                TypeReturn tif = ;
+                break;
         }
         }
         return tp;
@@ -931,6 +940,17 @@ print_expr(struct expr expr, int tab)
                 print_expr(*expr.binop.left, tab + 2);
                 print_expr(*expr.binop.right, tab + 2);
                 break;
+        case IF_CLAUSE:
+                printf("if: \n");
+                print_expr(*expr.if_clause.condition, tab + 2);
+                print_tab(tab);
+                printf("then: \n");
+                print_elist(*expr.if_clause.if_expr, tab + 2);
+                if (expr.if_clause.else_expr) {
+                        print_tab(tab);
+                        printf("else: \n");
+                        print_elist(*expr.if_clause.else_expr, tab + 2);
+                }
         }
 }
 
@@ -1347,6 +1367,12 @@ program(char *prog)
 int
 main(int argc, char **argv)
 {
-        program(argv[1]);
+        //program(argv[1]);
+        unused_tok = token(END);
+        s = "if (1) 1 elif (1) 3 else 2.";
+        linum = 1;
+        cpos = 0;
+        print_expr(*parse_expr(), 0);
+        free_all();
         return 0;
 }
