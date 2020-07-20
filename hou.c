@@ -1403,6 +1403,7 @@ program(char *prog)
 
         ctx = NULL;
         ctx = add_ctx(ctx, "true", gen(tlit("bool")));
+        ctx = add_ctx(ctx, "false", gen(tlit("bool")));
         ctx = add_ctx(ctx, "print_int", gen(tfun(tint(), tlit("unit"))));
         s = prog;
         linum = 1;
@@ -1421,6 +1422,7 @@ int
 main(int argc, char **argv)
 {
 
+        //program("main = if (true) print_int(1) else print_int(6).");
         program(argv[1]);
         return 0;
 }
