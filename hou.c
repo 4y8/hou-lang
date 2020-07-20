@@ -1288,6 +1288,31 @@ compile_expr(Expr e, SContext *ctx)
                 printf("mov %s, rax\n", registers[reg]);
                 return registers[reg];
         }
+        case IF_CLAUSE: {
+                char *scratch_reg = compile_expr(*e.if_clause.condition, ctx);
+                char label_if[128], label_else[128], label_end[128];
+                int reg = alloc_reg();
+                sprintf(label_if, "__if%d", ++ndecl);
+                sprintf(label_end, "__end%d", ndecl);
+                sprintf(label_else, "__else%d", ndecl);
+                printf("cmp %s, 1\n"
+                       "je %s\n"
+                       "jmp %s\n"
+                       "%s:\n", scratch_reg, label_if, label_else, label_if);
+                scratch_reg = compile_body(e.if_clause.if_expr, ctx);
+                printf("mov %s, %s\n"
+                       "jmp %s\n", registers[reg],
+                       scratch_reg, label_end);
+                free_reg(scratch_reg);
+                printf("%s:\n", label_else);
+                if (e.if_clause.else_expr) {
+                        scratch_reg = compile_body(e.if_clause.else_expr, ctx);
+                        printf("mov %s, %s\n", registers[reg], scratch_reg);
+                }
+                printf("%s:\n", label_end);
+                return registers[reg];
+                break;
+        }
         }
         return "";
 }
@@ -1396,7 +1421,6 @@ int
 main(int argc, char **argv)
 {
 
-        //program("main = if(true) print_int(1).");
         program(argv[1]);
         return 0;
 }
