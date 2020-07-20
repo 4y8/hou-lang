@@ -4,7 +4,7 @@
 typedef struct {
         enum { LPARENT, RPARENT, IDE, NUM, STR, EQUAL, SEMICOL, COL,
                END, ARR, LET, IN, PLUS, MINUS, TIMES, DIVISE, DOT, IF,
-               ELSE, ELIF } type;
+               ELSE, ELIF, GREAT, LOW } type;
         union {
                 int   num;
                 char *str;
@@ -37,7 +37,8 @@ typedef struct expr {
                 struct {
                         struct expr *left;
                         struct expr *right;
-                        enum { OP_PLUS, OP_MINUS, OP_TIMES, OP_DIVISE } op;
+                        enum { OP_PLUS, OP_MINUS, OP_TIMES, OP_DIVISE, OP_LOW,
+                               OP_GREAT, OP_LOWE, OP_GREATE, OP_EQUAL } op;
                 } binop;
                 struct {
                         struct expr *condition;
@@ -167,6 +168,7 @@ Expr *parse_op(Expr *(*)(), unsigned int, unsigned int, unsigned int,
                unsigned int);
 Expr *parse_add();
 Expr *parse_mul();
+Expr *parse_rel();
 Decl parse_top_level();
 struct elist *parse_else();
 struct elist *parse_body();

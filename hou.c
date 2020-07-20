@@ -6,7 +6,7 @@
 #include "hou.h"
 
 #define NKEYWORD 5
-#define NPUNCT   9
+#define NPUNCT   11
 
 unsigned int linum;
 unsigned int cpos;
@@ -16,7 +16,8 @@ KeywordToken keywords[NKEYWORD] = {
 };
 PuncToken punctuation[NPUNCT] = {
         {DOT, '.'}, {COL, ','}, {DIVISE, '/'}, {SEMICOL, ';'}, {PLUS, '+'},
-        {TIMES, '*'}, {LPARENT, '('}, {RPARENT, ')'}, {EQUAL, '='}
+        {TIMES, '*'}, {LPARENT, '('}, {RPARENT, ')'}, {EQUAL, '='}, {LOW, '<'},
+        {GREAT, '>'}
 };
 
 MemoryTable *mem = NULL;
@@ -39,15 +40,13 @@ safe_malloc(size_t size)
 void
 free_all()
 {
-        MemoryTable *p;
         MemoryTable *prev;
 
-        p = mem;
-        while (p) {
-                prev = p->next;
-                free(p->p);
-                free(p);
-                p = prev;
+        while (mem) {
+                prev = mem->next;
+                free(mem->p);
+                free(mem);
+                mem = prev;
         }
 
 }
@@ -264,7 +263,7 @@ parse_expr()
                         p = &args;
                         while (!peek(RPARENT)) {
                                 p->next = safe_malloc(sizeof(struct elist));
-                                p->next->expr = *parse_add();
+                                p->next->expr = *parse_rel();
                                 p = p->next;
                                 if (!peek(RPARENT)) assert(COL);
                                 else unused_tok = token(RPARENT);
@@ -359,10 +358,10 @@ parse_else()
         return NULL;
 }
 
-struct expr *
-binop(struct expr *left, struct expr *right, unsigned int op)
+Expr *
+binop(Expr *left, Expr *right, unsigned int op)
 {
-        struct expr *e;
+        Expr *e;
 
         e = safe_malloc(sizeof(struct expr));
         *e = (Expr){.type = BINOP, .binop.op = op, .binop.left = left,
@@ -397,6 +396,28 @@ Expr *
 parse_add()
 {
         return parse_op(parse_mul, PLUS, OP_PLUS, MINUS, OP_MINUS);
+}
+
+Expr *
+parse_rel()
+{
+        Expr *expr;
+        Expr *e;
+
+        expr = parse_add();
+        e = safe_malloc(sizeof(struct expr));
+        e = expr;
+        for (;;) {
+                if (peek(GREAT))
+                        e = peek(EQUAL) ?
+                                binop(e, parse_add(), OP_GREATE) :
+                                binop(e, parse_add(), OP_GREAT);
+                else if (peek(LOW))
+                        e = peek(EQUAL) ?
+                                binop(e, parse_add(), OP_LOWE) :
+                                binop(e, parse_add(), OP_LOW);
+                else return e;
+        }
 }
 
 Decl
@@ -890,17 +911,22 @@ print_decllist(struct decllist *decllist, int tab)
         }
 }
 
-char
+char *
 op_to_char(unsigned int op)
 {
 
         switch (op) {
-        case OP_PLUS:   return '+';
-        case OP_MINUS:  return '-';
-        case OP_TIMES:  return '*';
-        case OP_DIVISE: return '/';
+        case OP_PLUS:   return "+";
+        case OP_MINUS:  return "-";
+        case OP_TIMES:  return "*";
+        case OP_DIVISE: return "/";
+        case OP_LOWE:   return "<=";
+        case OP_LOW:    return "<";
+        case OP_GREATE: return ">=";
+        case OP_GREAT:  return ">";
+        case OP_EQUAL:  return "=";
         }
-        return ' ';
+        return "";
 }
 
 void
@@ -927,6 +953,8 @@ print_token(Token t)
         case RPARENT: printf(")");                     break;
         case SEMICOL: printf(";");                     break;
         case END:     printf("END");                   break;
+        case GREAT:   printf(">");                     break;
+        case LOW:     printf("<");                     break;
     }
 }
 
@@ -957,7 +985,7 @@ print_expr(struct expr expr, int tab)
                 print_elist(*expr.letin.expr, tab + 2);
                 break;
         case BINOP:
-                printf("binop: %c\n", op_to_char(expr.binop.op));
+                printf("binop: %s\n", op_to_char(expr.binop.op));
                 print_expr(*expr.binop.left, tab + 2);
                 print_expr(*expr.binop.right, tab + 2);
                 break;
@@ -1160,6 +1188,7 @@ compile_expr(Expr e, SContext *ctx)
                                 case OP_DIVISE:
                                         error("Division by zero.", e.linum, e.cpos,
                                               SYNTAX_ERROR);
+                                default: break;
                                 }
                         int n = is_power_of2(e.binop.right->num);
                         if (n != -1) {
@@ -1220,6 +1249,7 @@ compile_expr(Expr e, SContext *ctx)
                         if (reg != -1) used_registers[reg] = 0;
                         break;
                 }
+                default: break;
                 } free_reg(regr);
                 return regl;
         }
@@ -1308,8 +1338,7 @@ compile_expr(Expr e, SContext *ctx)
                 if (e.if_clause.else_expr) {
                         scratch_reg = compile_body(e.if_clause.else_expr, ctx);
                         printf("mov %s, %s\n", registers[reg], scratch_reg);
-                }
-                printf("%s:\n", label_end);
+                } printf("%s:\n", label_end);
                 return registers[reg];
                 break;
         }
@@ -1422,7 +1451,7 @@ int
 main(int argc, char **argv)
 {
 
-        program("main = if (true) print_int(1) else print_int(6).");
-        //program(argv[1]);
+        //program("main = if (true) print_int(1) else print_int(6).");
+        program(argv[1]);
         return 0;
 }
