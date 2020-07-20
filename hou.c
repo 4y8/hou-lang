@@ -1422,7 +1422,7 @@ int
 main(int argc, char **argv)
 {
 
-        //program("main = if (true) print_int(1) else print_int(6).");
-        program(argv[1]);
+        program("main = if (true) print_int(1) else print_int(6).");
+        //program(argv[1]);
         return 0;
 }
