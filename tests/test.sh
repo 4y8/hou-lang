@@ -3,7 +3,7 @@
 test() {
     ./a.out "$(cat "$1")" > out.asm &&
         nasm -felf64 out.asm -o out.o &&
-        ld out.o -o out
+        musl-gcc out.o -static -o out
     ./out
     [ "$?" != "$2" ] &&
         echo "Test $1 failed!" &&

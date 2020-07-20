@@ -150,6 +150,13 @@ lex_while(int (*fun)(int))
         return str;
 }
 
+int
+iside(int c)
+{
+
+        return isalnum(c) || c == '_';
+}
+
 Token
 lexer()
 {
@@ -159,7 +166,7 @@ lexer()
         tpos   = -1;
         if (*s == 0) return token(END);
         if (isalpha(*s)) {
-                char *str = lex_while(isalpha);
+                char *str = lex_while(iside);
                 int i = keyword_to_token(str);
                 if (i == -1) tok = token_str(str);
                 else tok = token(i);
@@ -734,10 +741,24 @@ infer(Expr expr, Context *ctx)
         }
         case IF_CLAUSE: {
                 TypeReturn tcond = infer(*expr.if_clause.condition, ctx);
-                Subst *s = unify(tcond.type, tlit("bool"));
-                s = compose_subst(s, tcond.subst);
-                app_subst_ctx(s, ctx);
-                TypeReturn tif = ;
+                tp.subst = unify(tcond.type, tlit("bool"));
+                tp.subst = compose_subst(tp.subst, tcond.subst);
+                app_subst_ctx(tp.subst, ctx);
+                TypeReturn tif = infer_body(expr.if_clause.if_expr, ctx);
+                tp.subst = compose_subst(tp.subst, tif.subst);
+                app_subst_ctx(tp.subst, ctx);
+                if (expr.if_clause.else_expr) {
+                        TypeReturn telse =
+                                infer_body(expr.if_clause.else_expr, ctx);
+                        tp.subst = compose_subst(tp.subst, telse.subst);
+                        tp.subst = compose_subst(tp.subst, unify(tif.type,
+                                                                 telse.type));
+                        tp.type = app_subst(telse.type, tp.subst);
+                } else {
+                        tp.subst = compose_subst(tp.subst,
+                                                 unify(tif.type, tlit("unit")));
+                        tp.type = tlit("unit");
+                }
                 break;
         }
         }
@@ -1062,8 +1083,9 @@ alloc_bss(int size)
                 free_bss_table = free_bss_table->next;
                 return name;
         } name = safe_malloc(256);
-        sprintf(name, "__bss_%d", ++ndecl);
+        sprintf(name, "_bss_%d", ++ndecl);
         add_bss(name, size);
+        sprintf(name, "__bss_%d", ++ndecl);
         return name;
 }
 
@@ -1210,7 +1232,7 @@ compile_expr(Expr e, SContext *ctx)
                                 return registers[reg];
                         } ctx = ctx->next;
                 } int reg = alloc_reg();
-                printf("mov %s, [%s]\n", registers[reg], e.var);
+                printf("mov %s, [_%s]\n", registers[reg], e.var);
                 return registers[reg];
         case LETIN: {
                 struct decllist *p = e.letin.decl;
@@ -1225,7 +1247,7 @@ compile_expr(Expr e, SContext *ctx)
                         compile_decl(p->decl, ctx, s);
                         ctx = add_sctx(ctx, decl_name(p->decl), ++nvar);
 
-                        printf("push QWORD [%s]\n", s);
+                        printf("push QWORD [_%s]\n", s);
                         p = p->next;
                         ++length;
                 } char *reg = compile_body(e.letin.expr, ctx);
@@ -1289,7 +1311,7 @@ compile_decl(Decl decl, SContext *ctx, char *name)
         add_bss(name, 8);
         if (decl.type == VAR_DECL) {
                 char *reg = compile_body(decl.var_decl.body, ctx);
-                printf("mov [%s], %s\n", name, reg);
+                printf("mov [_%s], %s\n", name, reg);
                 free_reg(reg);
         } else {
                 char label[64];
@@ -1298,7 +1320,7 @@ compile_decl(Decl decl, SContext *ctx, char *name)
                 struct elist *p = decl.fun_decl.args;
                 sprintf(label, "__decl%d", ++ndecl);
                 printf("jmp %s\n"
-                       "_%s%d:\n", label, name, n);
+                       "__%s%d:\n", label, name, n);
                 while (p) {
                         ctx = add_sctx(ctx, p->expr.var, ++nvar);
                         ++length;
@@ -1308,7 +1330,8 @@ compile_decl(Decl decl, SContext *ctx, char *name)
                 printf("mov rax, %s\n"
                        "ret\n"
                        "%s:\n", reg, label);
-                printf("mov QWORD [%s], QWORD _%s%d\n", name, name, n);
+                printf("lea %s, [__%s%d]\n"
+                       "mov [_%s], %s\n", reg, name, n, name, reg);
                 free_reg(reg);
                 nvar -= length;
         }
@@ -1320,7 +1343,7 @@ compile_bss()
 
         printf("section .bss\n");
         while (bss_table) {
-                printf("%s: resb %d\n", bss_table->name, bss_table->size);
+                printf("_%s: resb %d\n", bss_table->name, bss_table->size);
                 bss_table = bss_table->next;
         }
 }
@@ -1338,9 +1361,10 @@ compile_decls(struct decllist *decls)
 }
 
 char *prolog =
-        "global _start\n"
+        "DEFAULT REL\n"
+        "global main\n"
         "section .text\n"
-        "_start:\n";
+        "main:\n";
 
 char *epilog =
         "mov rax, 60\n"
@@ -1350,15 +1374,19 @@ void
 program(char *prog)
 {
         struct decllist *decl;
+        Context *ctx;
 
+        ctx = NULL;
+        ctx = add_ctx(ctx, "true", gen(tlit("bool")));
+        ctx = add_ctx(ctx, "print_int", gen(tfun(tint(), tlit("unit"))));
         s = prog;
         linum = 1;
         cpos  = 0;
         decl  = parse_program();
-        infer_decls(decl, NULL);
+        infer_decls(decl, ctx);
         printf("%s", prolog);
         compile_decls(decl);
-        printf("mov rdi, [main]\n");
+        printf("mov rdi, [_main]\n");
         printf("%s", epilog);
         compile_bss();
         free_all();
@@ -1367,12 +1395,8 @@ program(char *prog)
 int
 main(int argc, char **argv)
 {
-        //program(argv[1]);
-        unused_tok = token(END);
-        s = "if (1) 1 elif (1) 3 else 2.";
-        linum = 1;
-        cpos = 0;
-        print_expr(*parse_expr(), 0);
-        free_all();
+
+        //program("main = if(true) print_int(1).");
+        program(argv[1]);
         return 0;
 }
