@@ -944,7 +944,9 @@ print_token(Token t)
         case COL:     printf(",");                     break;
         case DOT:     printf(".");                     break;
         case ARR:     printf("->");                    break;
+        case LOW:     printf("<");                     break;
         case PLUS:    printf("+");                     break;
+        case GREAT:   printf(">");                     break;
         case EQUAL:   printf("=");                     break;
         case MINUS:   printf("-");                     break;
         case TIMES:   printf("*");                     break;
@@ -953,8 +955,6 @@ print_token(Token t)
         case RPARENT: printf(")");                     break;
         case SEMICOL: printf(";");                     break;
         case END:     printf("END");                   break;
-        case GREAT:   printf(">");                     break;
-        case LOW:     printf("<");                     break;
     }
 }
 
