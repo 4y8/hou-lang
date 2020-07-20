@@ -190,7 +190,7 @@ lexer()
                                         --s;
                                         tok = token(MINUS);
                                 } break;
-                        default : error("Unxecpected charachter", linum, cpos,
+                        default : error("Unexecpected charachter", linum, cpos,
                                         UNEXPECTED_CHAR);
                         }
                 } ++cpos;
@@ -298,7 +298,7 @@ parse_expr()
         case IF: {
                 Expr *cond;
                 assert(LPARENT);
-                cond = parse_expr();
+                cond = parse_rel();
                 assert(RPARENT);
                 *expr = (Expr){.type = IF_CLAUSE,
                                .if_clause.condition = cond,
@@ -324,7 +324,7 @@ parse_body()
         p = &body;
         for(;;) {
                 p->next = safe_malloc(sizeof(struct elist));
-                p->next->expr = *parse_add();
+                p->next->expr = *parse_rel();
                 p = p->next;
                 if (act_token().type == SEMICOL) next_token();
                 else break;
@@ -345,7 +345,7 @@ parse_else()
                 struct elist *body = safe_malloc(sizeof(struct elist));
                 body->next = NULL;
                 assert(LPARENT);
-                Expr *cond = parse_expr();
+                Expr *cond = parse_rel();
                 assert(RPARENT);
                 body->expr = (Expr){.type = IF_CLAUSE,
                                     .if_clause.condition = cond,
@@ -416,6 +416,7 @@ parse_rel()
                         e = peek(EQUAL) ?
                                 binop(e, parse_add(), OP_LOWE) :
                                 binop(e, parse_add(), OP_LOW);
+                else if (peek(EQUAL)) e = binop(e, parse_add(), OP_EQUAL);
                 else return e;
         }
 }
@@ -737,7 +738,17 @@ infer(Expr expr, Context *ctx)
                 tp.subst = compose_subst(r.subst, l.subst);
                 tp.subst = compose_subst(tp.subst, unify(l.type, tint()));
                 tp.subst = compose_subst(tp.subst, unify(r.type, tint()));
-                tp.type = tint();
+                switch (expr.binop.op) {
+                case OP_PLUS:
+                case OP_MINUS:
+                case OP_TIMES:
+                case OP_DIVISE: tp.type = tint(); break;
+                case OP_GREATE:
+                case OP_LOWE:
+                case OP_EQUAL:
+                case OP_GREAT:
+                case OP_LOW: tp.type = tlit("bool"); break;
+                }
                 break;
         }
         case FUN_CALL: {
@@ -1043,9 +1054,10 @@ print_type(Type t)
         }
 }
 
-#define NREG 7
+#define NREG 8
 
 int used_registers[NREG] = {
+        0,
         0,
         0,
         0,
@@ -1058,6 +1070,7 @@ int used_registers[NREG] = {
 char *registers[NREG] = {
         "rcx",
         "rdx",
+        "rdi",
         "rsi",
         "r8",
         "r9",
@@ -1163,6 +1176,18 @@ is_power_of2(int n)
         } return i;
 }
 
+void
+cmp_e(char *l, char *r, char *op)
+{
+
+        ++ndecl;
+        printf("cmp %s, %s\n"
+               "mov %s, 1\n"
+               "j%s .__label%d\n"
+               "mov %s, 0\n"
+               ".__label%d:\n", l, r, l, op, ndecl, l, ndecl);
+}
+
 char *
 compile_expr(Expr e, SContext *ctx)
 {
@@ -1249,7 +1274,11 @@ compile_expr(Expr e, SContext *ctx)
                         if (reg != -1) used_registers[reg] = 0;
                         break;
                 }
-                default: break;
+                case OP_LOW:    cmp_e(regl, regr, "l");   break;
+                case OP_LOWE:   cmp_e(regl, regr, "le");  break;
+                case OP_EQUAL:  cmp_e(regl, regr, "e");   break;
+                case OP_GREAT:  cmp_e(regl, regr, "g");   break;
+                case OP_GREATE: cmp_e(regl, regr, "ge");  break;
                 } free_reg(regr);
                 return regl;
         }
@@ -1308,6 +1337,7 @@ compile_expr(Expr e, SContext *ctx)
                         p = p->next;
                         ++length;
                 } printf("call %s\n", fun);
+                free_reg(fun);
                 printf("add rsp, %d\n", length << 3);
                 for (int i = NREG - 1; i >= 0; --i)
                         if (local_used[i]) {
