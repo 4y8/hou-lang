@@ -178,7 +178,7 @@ lexer()
                                         tok = token(ARR);
                                         ++cpos;
                                 } else if (*s == '-') {
-                                        while(*(++s) != '\n' && *s != 0);
+                                        while(*(++s) != '\n' && *s != 0) ++cpos;
                                         return lexer();
                                 } else {
                                         --s;
@@ -285,17 +285,25 @@ parse_expr()
                         p->next->decl = parse_top_level();
                         p = p->next;
                 } p->next = NULL;
-                expr->letin.decl = l.next;
-                expr->letin.expr = parse_body();
-                expr->type = LETIN;
+                *expr = (Expr){.type = LETIN, .letin.decl = l.next,
+                               .letin.expr = parse_body()};
                 break;
+        }
+        case IF: {
+                Expr *cond;
+                assert(LPARENT);
+                cond = parse_expr();
+                assert(RPARENT);
+                *expr = (Expr){.type = IF_CLAUSE,
+                               .if_clause.condition = cond,
+                               .if_clause.if_expr = parse_body(),
+                               .if_clause.else_expr = parse_else()};
         }
         default:
                 error("Unexpected token .", tok.linum, tok.cpos,
                       SYNTAX_ERROR);
                 break;
-        }
-        return expr;
+        } return expr;
 }
 
 struct elist *
@@ -315,6 +323,32 @@ parse_body()
                 else break;
         } p->next = NULL;
         return body.next;
+}
+
+struct elist *
+parse_else()
+{
+
+        if (peek(ELSE)) {
+                struct elist *body;
+                body = parse_body();
+                assert(DOT);
+                return body;
+        } else if (peek(ELIF)) {
+                struct elist *body = safe_malloc(sizeof(struct elist));
+                body->next = NULL;
+                assert(LPARENT);
+                Expr *cond = parse_expr();
+                assert(RPARENT);
+                body->expr = (Expr){.type = IF_CLAUSE,
+                                    .if_clause.condition = cond,
+                                    .if_clause.if_expr = parse_body(),
+                                    .if_clause.else_expr = parse_else()
+                }; return body;
+        } else if (peek(DOT)) return NULL;
+        else error("Unexpected token.", act_token().linum, act_token().cpos,
+                   SYNTAX_ERROR);
+        return NULL;
 }
 
 struct expr *
@@ -370,7 +404,6 @@ parse_top_level()
                 if (tok.type == LPARENT) {
                         struct elist args;
                         struct elist *p;
-                        decl.fun_decl.name = name;
                         p = &args;
                         args.next = NULL;
                         while (!peek(RPARENT)) {
@@ -384,9 +417,10 @@ parse_top_level()
                                         assert(COL);
                         } assert(ARR);
                         p->next = NULL;
-                        decl.type = FUN_DECL;
-                        decl.fun_decl.args = args.next;
-                        decl.fun_decl.body = parse_body();
+                        decl = (Decl){.type = FUN_DECL,
+                                      .fun_decl.args = args.next,
+                                      .fun_decl.body = parse_body(),
+                                      .fun_decl.name = name};
                 } else if (tok.type == EQUAL) {
                         decl = (Decl){.type = VAR_DECL, .var_decl.name = name,
                                       .var_decl.body = parse_body()};

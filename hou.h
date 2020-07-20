@@ -24,7 +24,7 @@ typedef struct {
         char c;
 } PuncToken;
 
-struct expr {
+typedef struct expr {
         union {
                 struct {
                         struct decllist *decl;
@@ -39,14 +39,19 @@ struct expr {
                         struct expr *right;
                         enum { OP_PLUS, OP_MINUS, OP_TIMES, OP_DIVISE } op;
                 } binop;
+                struct {
+                        struct expr *condition;
+                        struct elist *if_expr;
+                        struct elist *else_expr;
+                } if_clause;
                 char *var;
                 int num;
         };
-        enum { FUN_CALL, INT, VAR, LETIN, BINOP } type;
+        enum { FUN_CALL, INT, VAR, LETIN, BINOP, IF_CLAUSE } type;
         int cpos;
         int abspos;
         int linum;
-};
+} Expr;
 
 struct elist {
         struct expr expr;
@@ -57,8 +62,6 @@ struct slist {
         char *str;
         struct slist *next;
 };
-
-typedef struct expr Expr;
 
 struct decl {
         union {
@@ -165,6 +168,7 @@ Expr *parse_op(Expr *(*)(), unsigned int, unsigned int, unsigned int,
 Expr *parse_add();
 Expr *parse_mul();
 Decl parse_top_level();
+struct elist *parse_else();
 struct elist *parse_body();
 struct decllist *parse_program();
 
