@@ -6,7 +6,7 @@
 #include "hou.h"
 
 #define NKEYWORD 6
-#define NPUNCT   11
+#define NPUNCT   12
 
 unsigned int linum;
 unsigned int cpos;
@@ -18,7 +18,7 @@ KeywordToken keywords[NKEYWORD] = {
 PuncToken punctuation[NPUNCT] = {
         {DOT, '.'}, {COL, ','}, {DIVISE, '/'}, {SEMICOL, ';'}, {PLUS, '+'},
         {TIMES, '*'}, {LPARENT, '('}, {RPARENT, ')'}, {EQUAL, '='}, {LOW, '<'},
-        {GREAT, '>'}
+        {GREAT, '>'}, {BACKS, '\\'}
 };
 
 MemoryTable *mem = NULL;
@@ -980,6 +980,7 @@ print_token(Token t)
         case EQUAL:   printf("=");                     break;
         case MINUS:   printf("-");                     break;
         case TIMES:   printf("*");                     break;
+        case BACKS:   printf("\\");                    break;
         case LPARENT: printf("(");                     break;
         case DIVISE:  printf("/");                     break;
         case RPARENT: printf(")");                     break;
@@ -1070,9 +1071,10 @@ print_type(Type t)
         }
 }
 
-#define NREG 8
+#define NREG 9
 
 int used_registers[NREG] = {
+        0,
         0,
         0,
         0,
@@ -1084,6 +1086,7 @@ int used_registers[NREG] = {
 };
 
 char *registers[NREG] = {
+        "rax",
         "rcx",
         "rdx",
         "rdi",
@@ -1336,7 +1339,6 @@ compile_expr(Expr e, SContext *ctx)
                 return reg;
         }
         case FUN_CALL: {
-                char *fun = compile_expr(*e.fun_call.fun, ctx);
                 int length = 0;
                 /* Saves registers. */
                 int local_used[NREG];
@@ -1346,6 +1348,7 @@ compile_expr(Expr e, SContext *ctx)
                                 printf("push %s\n", registers[i]);
                                 ++nvar;
                         }
+                char *fun = compile_expr(*e.fun_call.fun, ctx);
                 struct elist *p = e.fun_call.args;
                 while (p) {
                         char *arg = compile_expr(p->expr, ctx);
@@ -1354,15 +1357,15 @@ compile_expr(Expr e, SContext *ctx)
                         p = p->next;
                         ++length;
                 } printf("call %s\n", fun);
-                free_reg(fun);
                 printf("add rsp, %d\n", length << 3);
+                int reg = alloc_reg();
+                free_reg(fun);
+                printf("mov %s, rax\n", registers[reg]);
                 for (int i = NREG - 1; i >= 0; --i)
                         if (local_used[i]) {
                                 printf("pop %s\n", registers[i]);
                                 --nvar;
                         }
-                int reg = alloc_reg();
-                printf("mov %s, rax\n", registers[reg]);
                 return registers[reg];
         }
         case IF_CLAUSE: {
@@ -1385,6 +1388,7 @@ compile_expr(Expr e, SContext *ctx)
                 if (e.if_clause.else_expr) {
                         scratch_reg = compile_body(e.if_clause.else_expr, ctx);
                         printf("mov %s, %s\n", registers[reg], scratch_reg);
+                        free_reg(scratch_reg);
                 } printf("%s:\n", label_end);
                 return registers[reg];
                 break;
@@ -1475,11 +1479,7 @@ void
 program(char *prog)
 {
         struct decllist *decl;
-        Context *ctx;
 
-        ctx = NULL;
-        ctx = add_ctx(ctx, "true", gen(tlit("bool")));
-        ctx = add_ctx(ctx, "false", gen(tlit("bool")));
         s = prog;
         linum = 1;
         cpos  = 0;
@@ -1497,7 +1497,6 @@ int
 main(int argc, char **argv)
 {
 
-        //program("main = if (true) print_int(1) else print_int(6).");
         program(argv[1]);
         return 0;
 }

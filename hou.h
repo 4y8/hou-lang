@@ -4,7 +4,7 @@
 typedef struct {
         enum { LPARENT, RPARENT, IDE, NUM, STR, EQUAL, SEMICOL, COL,
                END, ARR, LET, IN, PLUS, MINUS, TIMES, DIVISE, DOT, IF,
-               ELSE, ELIF, GREAT, LOW, EXTERN } type;
+               ELSE, ELIF, GREAT, LOW, EXTERN, BACKS } type;
         union {
                 int   num;
                 char *str;
