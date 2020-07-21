@@ -5,14 +5,15 @@
 #include <stdio.h>
 #include "hou.h"
 
-#define NKEYWORD 5
+#define NKEYWORD 6
 #define NPUNCT   11
 
 unsigned int linum;
 unsigned int cpos;
 unsigned int nvar = 0;
 KeywordToken keywords[NKEYWORD] = {
-        {LET, "let"}, {IN, "in"}, {IF, "if"}, {ELIF, "elif"}, {ELSE, "else"}
+        {LET, "let"}, {IN, "in"}, {IF, "if"}, {ELIF, "elif"}, {ELSE, "else"},
+        {EXTERN, "extern"}
 };
 PuncToken punctuation[NPUNCT] = {
         {DOT, '.'}, {COL, ','}, {DIVISE, '/'}, {SEMICOL, ';'}, {PLUS, '+'},
@@ -56,8 +57,7 @@ keyword_to_token(char *s)
 {
 
         for (unsigned i = 0; i < NKEYWORD; ++i)
-                if (!strcmp(keywords[i].s, s))
-                        return keywords[i].t;
+                if (!strcmp(keywords[i].s, s)) return keywords[i].t;
         return -1;
 }
 
@@ -66,8 +66,7 @@ punct_to_token(char c)
 {
 
         for (unsigned i = 0; i < NPUNCT; ++i)
-                if (punctuation[i].c == c)
-                        return punctuation[i].t;
+                if (punctuation[i].c == c) return punctuation[i].t;
         return -1;
 }
 
@@ -421,6 +420,33 @@ parse_rel()
         }
 }
 
+Context *init_ctx = NULL;
+
+Type *
+parse_type()
+{
+        Token tok;
+        Type *t;
+
+        t = NULL;
+        while (!peek(DOT)) {
+                tok = next_token();
+                switch(tok.type) {
+                case IDE:
+                        t = tlit(tok.str);
+                        break;
+                case NUM:
+                        t = tvar(tok.num);
+                        break;
+                case ARR:
+                        return tfun(t, parse_type());
+                default:
+                        error("Unexpected token.", tok.linum, tok.cpos,
+                              SYNTAX_ERROR);
+                }
+        } return t;
+}
+
 Decl
 parse_top_level()
 {
@@ -456,6 +482,10 @@ parse_top_level()
                                       .var_decl.body = parse_body()};
                 } else error("Unexpected token.", act_token().linum,
                              act_token().cpos, SYNTAX_ERROR);
+        } else if (tok.type == EXTERN) {
+                tok = next_token();
+                init_ctx = add_ctx(init_ctx, tok.str, gen(parse_type()));
+                return parse_top_level();
         } else error("Unexpected token.", act_token().linum,
                      act_token().cpos, SYNTAX_ERROR);
         return decl;
@@ -491,7 +521,6 @@ ftv(Type *t)
                 while (p) p=p->next;
                 p = ftv(t->fun.right);
                 break;
-        case TINT:
         case TLIT: l = NULL; break;
         case TVAR:
                 l       = safe_malloc(sizeof(struct ilist));
@@ -552,16 +581,6 @@ tfun(Type *left, Type *right)
 }
 
 Type *
-tint()
-{
-        Type *t;
-
-        t = safe_malloc(sizeof(Type));
-        t->type = TINT;
-        return t;
-}
-
-Type *
 tvar(unsigned int var)
 {
         Type *t;
@@ -585,7 +604,7 @@ Type *
 app_subst(Type *t, Subst *s)
 {
 
-        if (t->type == TLIT || t->type == TINT) return t;
+        if (t->type == TLIT) return t;
         else if (t->type == TFUN)
                 return tfun(app_subst(t->fun.left, s), app_subst(t->fun.right, s));
         else
@@ -638,7 +657,6 @@ unify(Type *t1, Type *t2)
         Subst *s;
         if (t1->type == TLIT && t2->type == TLIT && !strcmp(t2->lit, t1->lit))
                 s = NULL;
-        else if (t1->type == TINT && t2->type == TINT) s = NULL;
         else if (t1->type == TVAR) s = bind(t1->var, t2);
         else if (t2->type == TVAR) s = bind(t2->var, t1);
         else if (t1->type == TFUN && t2->type == TFUN)
@@ -726,7 +744,7 @@ infer(Expr expr, Context *ctx)
         tp.subst = NULL;
         switch (expr.type) {
         case INT:
-                tp.type = tint();
+                tp.type = tlit("int");
                 break;
         case VAR:
                 tp.type = inst(find_ctx(expr.var, ctx));
@@ -736,13 +754,13 @@ infer(Expr expr, Context *ctx)
                 app_subst_ctx(r.subst, ctx);
                 TypeReturn l = infer(*expr.binop.left, ctx);
                 tp.subst = compose_subst(r.subst, l.subst);
-                tp.subst = compose_subst(tp.subst, unify(l.type, tint()));
-                tp.subst = compose_subst(tp.subst, unify(r.type, tint()));
+                tp.subst = compose_subst(tp.subst, unify(l.type, tlit("int")));
+                tp.subst = compose_subst(tp.subst, unify(r.type, tlit("int")));
                 switch (expr.binop.op) {
                 case OP_PLUS:
                 case OP_MINUS:
                 case OP_TIMES:
-                case OP_DIVISE: tp.type = tint(); break;
+                case OP_DIVISE: tp.type = tlit("int"); break;
                 case OP_GREATE:
                 case OP_LOWE:
                 case OP_EQUAL:
@@ -949,6 +967,7 @@ print_token(Token t)
         case LET:     printf("let");                   break;
         case ELSE:    printf("else");                  break;
         case ELIF:    printf("elif");                  break;
+        case EXTERN:  printf("extern");                break;
         case NUM:     printf("number: %d", t.num);     break;
         case IDE:     printf("identifier: %s", t.str); break;
         case STR:     printf("string: %s", t.str);     break;
@@ -1037,9 +1056,6 @@ print_type(Type t)
 {
 
         switch (t.type) {
-        case TINT:
-                printf("int");
-                break;
         case TFUN:
                 print_type(*t.fun.left);
                 printf(" -> ");
@@ -1300,7 +1316,8 @@ compile_expr(Expr e, SContext *ctx)
                 while (p) {
                         char *s = alloc_bss(8);
                         FreeBSSTable *nf_table = safe_malloc(sizeof(FreeBSSTable));
-                        *nf_table = (FreeBSSTable){.name = s, .size = 8, .next = f_table};
+                        *nf_table = (FreeBSSTable){.name = s, .size = 8,
+                                                   .next = f_table};
                         f_table = nf_table;
 
                         compile_decl(p->decl, ctx, s);
@@ -1463,12 +1480,11 @@ program(char *prog)
         ctx = NULL;
         ctx = add_ctx(ctx, "true", gen(tlit("bool")));
         ctx = add_ctx(ctx, "false", gen(tlit("bool")));
-        ctx = add_ctx(ctx, "print_int", gen(tfun(tint(), tlit("unit"))));
         s = prog;
         linum = 1;
         cpos  = 0;
         decl  = parse_program();
-        infer_decls(decl, ctx);
+        infer_decls(decl, init_ctx);
         printf("%s", prolog);
         compile_decls(decl);
         printf("mov rdi, [_main]\n");

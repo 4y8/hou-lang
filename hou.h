@@ -4,7 +4,7 @@
 typedef struct {
         enum { LPARENT, RPARENT, IDE, NUM, STR, EQUAL, SEMICOL, COL,
                END, ARR, LET, IN, PLUS, MINUS, TIMES, DIVISE, DOT, IF,
-               ELSE, ELIF, GREAT, LOW } type;
+               ELSE, ELIF, GREAT, LOW, EXTERN } type;
         union {
                 int   num;
                 char *str;
@@ -93,7 +93,7 @@ struct type {
                         struct type *right;
                 } fun;
         };
-        enum { TLIT, TVAR, TFUN, TINT } type;
+        enum { TLIT, TVAR, TFUN } type;
 };
 
 typedef struct type Type;
@@ -178,9 +178,13 @@ struct ilist* ftv(Type *);
 int occurs(struct ilist *, int);
 struct ilist *ftv_sch(Scheme);
 
+Context *add_ctx(Context *ctx, char *name, Scheme sch);
+Scheme gen(Type *);
+
 Type *tfun(Type *, Type *);
 Type *tint();
 Type *tvar(unsigned int);
+Type *tlit();
 
 Type *app_subst(Type *, Subst *);
 Scheme app_subst_sch(Scheme, Subst *);
