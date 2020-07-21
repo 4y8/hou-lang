@@ -45,10 +45,11 @@ typedef struct expr {
                         struct elist *if_expr;
                         struct elist *else_expr;
                 } if_clause;
+                struct decl *lam;
                 char *var;
                 int num;
         };
-        enum { FUN_CALL, INT, VAR, LETIN, BINOP, IF_CLAUSE } type;
+        enum { FUN_CALL, INT, VAR, LETIN, BINOP, IF_CLAUSE, LAM } type;
         int cpos;
         int abspos;
         int linum;
@@ -67,15 +68,12 @@ struct slist {
 struct decl {
         union {
                 struct {
-                        char *name;
                         struct elist *args;
                         struct elist *body;
                 } fun_decl;
-                struct {
-                        char *name;
-                        struct elist *body;
-                } var_decl;
+                struct elist *var_decl;
         };
+        char *name;
         enum { FUN_DECL, VAR_DECL } type;
 };
 
@@ -171,6 +169,7 @@ Expr *parse_mul();
 Expr *parse_rel();
 Decl parse_top_level();
 struct elist *parse_else();
+struct elist *parse_arg(unsigned int);
 struct elist *parse_body();
 struct decllist *parse_program();
 

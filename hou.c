@@ -305,6 +305,18 @@ parse_expr()
                                .if_clause.else_expr = parse_else()};
                 break;
         }
+        case LPARENT:
+                expr = parse_expr();
+                assert(RPARENT);
+                break;
+        case BACKS: {
+                *expr = (Expr){.type = LAM, .lam = safe_malloc(sizeof(Decl))};
+                *expr->lam = (Decl){.type = FUN_DECL,
+                                    .fun_decl.args = parse_arg(ARR),
+                                    .fun_decl.body = parse_body(),
+                                   
+                };
+        }
         default:
                 error("Unexpected token .", tok.linum, tok.cpos,
                       SYNTAX_ERROR);
@@ -447,6 +459,26 @@ parse_type()
         } return t;
 }
 
+struct elist *
+parse_arg(unsigned int sep)
+{
+        struct elist args;
+        struct elist *p;
+
+        p = &args;
+        args.next = NULL;
+        while (!peek(sep)) {
+                p->next = safe_malloc(sizeof(struct elist));
+                p->next->expr = *parse_expr();
+                if (p->next->expr.type != VAR)
+                        error("Unexpected token.", act_token().linum,
+                              act_token().cpos, SYNTAX_ERROR);
+                p = p->next;
+                if (act_token().type != sep)
+                        assert(COL);
+        } return args.next;
+}
+
 Decl
 parse_top_level()
 {
@@ -458,28 +490,15 @@ parse_top_level()
                 char *name = tok.str;
                 tok = next_token();
                 if (tok.type == LPARENT) {
-                        struct elist args;
-                        struct elist *p;
-                        p = &args;
-                        args.next = NULL;
-                        while (!peek(RPARENT)) {
-                                p->next = safe_malloc(sizeof(struct elist));
-                                p->next->expr = *parse_expr();
-                                if (p->next->expr.type != VAR)
-                                        error("Unexpected token.", act_token().linum,
-                                              act_token().cpos, SYNTAX_ERROR);
-                                p = p->next;
-                                if (act_token().type != RPARENT)
-                                        assert(COL);
-                        } assert(ARR);
-                        p->next = NULL;
+                        struct elist *args = parse_arg(RPARENT);
+                        assert(ARR);
                         decl = (Decl){.type = FUN_DECL,
-                                      .fun_decl.args = args.next,
+                                      .fun_decl.args = args,
                                       .fun_decl.body = parse_body(),
-                                      .fun_decl.name = name};
+                                      .name = name};
                 } else if (tok.type == EQUAL) {
-                        decl = (Decl){.type = VAR_DECL, .var_decl.name = name,
-                                      .var_decl.body = parse_body()};
+                        decl = (Decl){.type = VAR_DECL, .name = name,
+                                      .var_decl = parse_body()};
                 } else error("Unexpected token.", act_token().linum,
                              act_token().cpos, SYNTAX_ERROR);
         } else if (tok.type == EXTERN) {
@@ -728,14 +747,6 @@ add_tfun(Type *t1, Type *t2)
         } else return tfun(t1, t2);
 }
 
-char *
-decl_name(Decl decl)
-{
-
-        if (decl.type == VAR_DECL) return decl.var_decl.name;
-        return decl.fun_decl.name;
-}
-
 TypeReturn
 infer(Expr expr, Context *ctx)
 {
@@ -860,12 +871,12 @@ infer_decl(Decl decl, Context *ctx)
         tp.subst = NULL;
         switch (decl.type) {
         case VAR_DECL:
-                tp = infer_body(decl.var_decl.body, ctx);
+                tp = infer_body(decl.var_decl, ctx);
                 break;
         case FUN_DECL: {
                 struct elist *p = decl.fun_decl.args;
                 Type *decl_type = tvar(++nvar);
-                ctx = add_ctx(ctx, decl_name(decl), scheme(NULL, decl_type));
+                ctx = add_ctx(ctx, decl.name, scheme(NULL, decl_type));
                 while (p) {
                         ctx = add_ctx(ctx, p->expr.var,
                                       scheme(NULL, tvar(++nvar)));
@@ -906,7 +917,7 @@ infer_decls(struct decllist *decls, Context *ctx)
 
         while (decls) {
                 TypeReturn dt = infer_decl(decls->decl, ctx);
-                ctx = add_ctx(ctx, decl_name(decls->decl), gen(dt.type));
+                ctx = add_ctx(ctx, decls->decl.name, gen(dt.type));
                 decls = decls->next;
         } return ctx;
 }
@@ -1041,13 +1052,13 @@ print_decl(struct decl decl, int tab)
         print_tab(tab);
         switch (decl.type) {
         case FUN_DECL:
-                printf("function: %s\n", decl.fun_decl.name);
+                printf("function: %s\n", decl.name);
                 print_elist(*decl.fun_decl.args, tab + 2);
                 print_elist(*decl.fun_decl.body, tab + 2);
                 break;
         case VAR_DECL:
-                printf("variable: %s\n", decl.var_decl.name);
-                print_elist(*decl.var_decl.body, tab + 2);
+                printf("variable: %s\n", decl.name);
+                print_elist(*decl.var_decl, tab + 2);
                 break;
         }
 }
@@ -1324,7 +1335,7 @@ compile_expr(Expr e, SContext *ctx)
                         f_table = nf_table;
 
                         compile_decl(p->decl, ctx, s);
-                        ctx = add_sctx(ctx, decl_name(p->decl), ++nvar);
+                        ctx = add_sctx(ctx, p->decl.name, ++nvar);
 
                         printf("push QWORD [_%s]\n", s);
                         p = p->next;
@@ -1415,7 +1426,7 @@ compile_decl(Decl decl, SContext *ctx, char *name)
 
         add_bss(name, 8);
         if (decl.type == VAR_DECL) {
-                char *reg = compile_body(decl.var_decl.body, ctx);
+                char *reg = compile_body(decl.var_decl, ctx);
                 printf("mov [_%s], %s\n", name, reg);
                 free_reg(reg);
         } else {
@@ -1460,7 +1471,7 @@ compile_decls(struct decllist *decls)
         while (decls) {
                 nvar = -1;
                 for (int i = 0; i < NREG; ++i) used_registers[i] = 0;
-                compile_decl(decls->decl, NULL, decl_name(decls->decl));
+                compile_decl(decls->decl, NULL, decls->decl.name);
                 decls = decls->next;
         }
 }
