@@ -1,7 +1,6 @@
-extern print_int int -> unit.
 fib(n) -> 
 	if (n = 0) 0
 	elif (n = 1) 1
 	else fib(n - 1) + fib(n - 2).
 
-main = print_int(fib(0))
+main = fib(0)

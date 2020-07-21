@@ -250,34 +250,9 @@ parse_expr()
         *expr = (Expr){.linum = tok.linum, .cpos = tok.cpos,
                        .abspos = tok.abspos};
         switch (tok.type) {
-        case IDE: {
-                char *name = tok.str;
-                tok = next_token();
-                switch (tok.type) {
-                case LPARENT: {
-                        struct elist args;
-                        struct elist *p;
-                        expr->fun_call.fun = safe_malloc(sizeof(Expr));
-                        *expr->fun_call.fun = (Expr){.type = VAR, .var = name};
-                        p = &args;
-                        while (!peek(RPARENT)) {
-                                p->next = safe_malloc(sizeof(struct elist));
-                                p->next->expr = *parse_rel();
-                                p = p->next;
-                                if (!peek(RPARENT)) assert(COL);
-                                else unused_tok = token(RPARENT);
-                        } p->next = NULL;
-                        expr->type = FUN_CALL;
-                        expr->fun_call.args = args.next;
-                        break;
-                }
-                default:
-                        unused_tok = tok;
-                        *expr = (Expr){.type = VAR, .var = name};
-                        break;
-                }
+        case IDE:
+                *expr = (Expr){.type = VAR, .var = tok.str};
                 break;
-        }
         case NUM:
                 *expr = (Expr){.type = INT, .num = tok.num};
                 break;
@@ -309,16 +284,16 @@ parse_expr()
                 expr = parse_expr();
                 assert(RPARENT);
                 break;
-        case BACKS: {
+        case BACKS:
                 *expr = (Expr){.type = LAM, .lam = safe_malloc(sizeof(Decl))};
                 *expr->lam = (Decl){.type = FUN_DECL,
+                                    .name = "_",
                                     .fun_decl.args = parse_arg(ARR),
-                                    .fun_decl.body = parse_body(),
-                                   
-                };
-        }
+                                    .fun_decl.body = parse_body()};
+                break;
+
         default:
-                error("Unexpected token .", tok.linum, tok.cpos,
+                error("Unexpected token.", tok.linum, tok.cpos,
                       SYNTAX_ERROR);
                 break;
         } return expr;
@@ -370,6 +345,31 @@ parse_else()
 }
 
 Expr *
+parse_fun()
+{
+        Expr *e;
+
+        e = parse_expr();
+        while(peek(LPARENT)) {
+                Expr *expr = malloc(sizeof(Expr));
+                struct elist args;
+                struct elist *p;
+                expr->fun_call.fun = e;
+                p = &args;
+                while (!peek(RPARENT)) {
+                        p->next = safe_malloc(sizeof(struct elist));
+                        p->next->expr = *parse_rel();
+                        p = p->next;
+                        if (!peek(RPARENT)) assert(COL);
+                        else unused_tok = token(RPARENT);
+                } p->next = NULL;
+                expr->type = FUN_CALL;
+                expr->fun_call.args = args.next;
+                e = expr;
+        } return e;
+}
+
+Expr *
 binop(Expr *left, Expr *right, unsigned int op)
 {
         Expr *e;
@@ -400,7 +400,7 @@ parse_op(Expr * (*fun)(), unsigned int op0,
 Expr *
 parse_mul()
 {
-        return parse_op(parse_expr, TIMES, OP_TIMES, DIVISE, OP_DIVISE);
+        return parse_op(parse_fun, TIMES, OP_TIMES, DIVISE, OP_DIVISE);
 }
 
 Expr *
@@ -467,14 +467,15 @@ parse_arg(unsigned int sep)
 
         p = &args;
         args.next = NULL;
-        while (!peek(sep)) {
+        if (peek(sep)) return NULL;
+        while (act_token().type != sep) {
                 p->next = safe_malloc(sizeof(struct elist));
                 p->next->expr = *parse_expr();
                 if (p->next->expr.type != VAR)
                         error("Unexpected token.", act_token().linum,
                               act_token().cpos, SYNTAX_ERROR);
                 p = p->next;
-                if (act_token().type != sep)
+                if (!peek(sep))
                         assert(COL);
         } return args.next;
 }
@@ -822,6 +823,9 @@ infer(Expr expr, Context *ctx)
                 }
                 break;
         }
+        case LAM:
+                tp = infer_decl(*expr.lam, ctx);
+                break;
         }
         return tp;
 }
@@ -1042,6 +1046,10 @@ print_expr(struct expr expr, int tab)
                         printf("else: \n");
                         print_elist(*expr.if_clause.else_expr, tab + 2);
                 }
+        case LAM:
+                printf("lambda:\n");
+                print_decl(*expr.lam, tab + 2);
+                break;
         }
 }
 
@@ -1346,8 +1354,7 @@ compile_expr(Expr e, SContext *ctx)
                 while (f_table) {
                         free_bss(f_table->name, f_table->size);
                         f_table = f_table->next;
-                }
-                return reg;
+                } return reg;
         }
         case FUN_CALL: {
                 int length = 0;
@@ -1402,7 +1409,13 @@ compile_expr(Expr e, SContext *ctx)
                         free_reg(scratch_reg);
                 } printf("%s:\n", label_end);
                 return registers[reg];
-                break;
+        }
+        case LAM: {
+                char *reg  = alloc_bss(8);
+                int retreg = alloc_reg();
+                compile_decl(*e.lam, ctx, reg);
+                printf("mov %s, [_%s]\n", registers[retreg], reg);
+                return registers[retreg];
         }
         }
         return "";
