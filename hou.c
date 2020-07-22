@@ -679,9 +679,12 @@ unify(Type *t1, Type *t2)
                 s = NULL;
         else if (t1->type == TVAR) s = bind(t1->var, t2);
         else if (t2->type == TVAR) s = bind(t2->var, t1);
-        else if (t1->type == TFUN && t2->type == TFUN)
-                s = compose_subst(unify(t1->fun.left, t2->fun.left),
-                                  unify(t1->fun.right, t2->fun.right));
+        else if (t1->type == TFUN && t2->type == TFUN) {
+                Subst *s1 = unify(t1->fun.left, t2->fun.left);
+                Subst *s2 = unify(app_subst(t1->fun.right, s1),
+                                  app_subst(t2->fun.right, s1));
+                s = compose_subst(s1,s2);
+        }
         else error("Can't unfiy types", 0, 0, TYPE_ERROR);
 
         return s;
@@ -784,7 +787,6 @@ infer(Expr expr, Context *ctx)
         case FUN_CALL: {
                 TypeReturn ft = infer(*expr.fun_call.fun, ctx);
                 app_subst_ctx(ft.subst, ctx);
-                TypeReturn args = infer_args(expr.fun_call.args, ctx);
                 TypeReturn at = infer_args(expr.fun_call.args, ctx);
                 Type *s_type = tvar(++nvar);
                 if (!expr.fun_call.args)
@@ -892,8 +894,8 @@ infer_decl(Decl decl, Context *ctx)
                 TypeReturn at = infer_args(decl.fun_decl.args, ctx);
                 if (!p) at.type = tfun(tlit("unit"), bt.type);
                 else    at.type = add_tfun(at.type, bt.type);
-                at.type = app_subst(at.type, unify(decl_type, at.type));
-                tp.type = app_subst(at.type, bt.subst);
+                tp.subst = compose_subst(unify(decl_type, at.type), tp.subst);
+                tp.type = app_subst(at.type, tp.subst);
                 break;
         }
         }
@@ -922,6 +924,7 @@ infer_decls(struct decllist *decls, Context *ctx)
         while (decls) {
                 TypeReturn dt = infer_decl(decls->decl, ctx);
                 ctx = add_ctx(ctx, decls->decl.name, gen(dt.type));
+                app_subst_ctx(dt.subst, ctx);
                 decls = decls->next;
         } return ctx;
 }
@@ -1077,9 +1080,11 @@ print_type(Type t)
 
         switch (t.type) {
         case TFUN:
+                printf("(");
                 print_type(*t.fun.left);
                 printf(" -> ");
                 print_type(*t.fun.right);
+                printf(")");
                 break;
         case TLIT:
                 printf("%s", t.lit);
@@ -1371,11 +1376,13 @@ compile_expr(Expr e, SContext *ctx)
                 while (p) {
                         char *arg = compile_expr(p->expr, ctx);
                         printf("push %s\n", arg);
+                        ++nvar;
                         free_reg(arg);
                         p = p->next;
                         ++length;
                 } printf("call %s\n", fun);
                 printf("add rsp, %d\n", length << 3);
+                nvar -= length;
                 int reg = alloc_reg();
                 free_reg(fun);
                 printf("mov %s, rax\n", registers[reg]);
