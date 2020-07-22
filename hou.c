@@ -1095,10 +1095,9 @@ print_type(Type t)
         }
 }
 
-#define NREG 9
+#define NREG 8
 
 int used_registers[NREG] = {
-        0,
         0,
         0,
         0,
@@ -1110,7 +1109,6 @@ int used_registers[NREG] = {
 };
 
 char *registers[NREG] = {
-        "rax",
         "rcx",
         "rdx",
         "rdi",
@@ -1230,17 +1228,26 @@ cmp_e(char *l, char *r, char *op)
                ".__label%d:\n", l, r, l, op, ndecl, l, ndecl);
 }
 
+char *var_accessor = "rsp";
+
 char *
-compile_expr(Expr e, SContext *ctx)
+compile_expr(Expr e, SContext *ctx, char *reg)
 {
 
         switch (e.type) {
         case INT: {
-                int reg = alloc_reg();
-                if (e.num)
-                        printf("mov %s, %d\n", registers[reg], e.num);
-                else printf("xor %s, %s\n", registers[reg], registers[reg]);
-                return registers[reg];
+                if (reg) {
+                        if (e.num) printf("mov %s, %d\n", reg, e.num);
+                        else printf("xor %s, %s\n", reg, reg);
+
+                } else {
+                        int reg = alloc_reg();
+                        if (e.num)
+                                printf("mov %s, %d\n", registers[reg], e.num);
+                        else printf("xor %s, %s\n", registers[reg],
+                                    registers[reg]);
+                        return registers[reg];
+                }
         }
         case BINOP: {
                 if (e.binop.right->type == INT) {
@@ -1248,10 +1255,10 @@ compile_expr(Expr e, SContext *ctx)
                                 switch(e.binop.op) {
                                 case OP_PLUS: /* FALLTHROUGH */
                                 case OP_MINUS:
-                                        return compile_expr(*e.binop.left, ctx);
+                                        return compile_expr(*e.binop.left, ctx, reg);
                                 case OP_TIMES:
                                         return compile_expr((Expr){.type = INT,
-                                                                .num = 0}, ctx);
+                                                                .num = 0}, ctx, reg);
                                 case OP_DIVISE:
                                         error("Division by zero.", e.linum, e.cpos,
                                               SYNTAX_ERROR);
@@ -1261,12 +1268,12 @@ compile_expr(Expr e, SContext *ctx)
                         if (n != -1) {
                                 if (e.binop.op == OP_TIMES) {
                                         char *reg = compile_expr(*e.binop.left,
-                                                                 ctx);
+                                                                 ctx, reg);
                                         printf("shl %s, %d\n", reg, n);
                                         return reg;
                                 } if (e.binop.op == OP_DIVISE) {
                                         char *reg = compile_expr(*e.binop.left,
-                                                                 ctx);
+                                                                 ctx, reg);
                                         printf("shr %s, %d\n", reg, n);
                                         return reg;
                                 }
@@ -1275,21 +1282,21 @@ compile_expr(Expr e, SContext *ctx)
                         if (e.binop.left->num == 0)
                                 switch(e.binop.op) {
                                 case OP_PLUS:
-                                        return compile_expr(*e.binop.right, ctx);
+                                        return compile_expr(*e.binop.right, ctx, reg);
                                 case OP_TIMES:
                                         return compile_expr((Expr){.type = INT,
-                                                                .num = 0}, ctx);
+                                                                .num = 0}, ctx, reg);
                                 default: break;
                                 }
                         int n = is_power_of2(e.binop.left->num);
                         if (n != -1 && e.binop.op == OP_TIMES) {
                                 char *reg = compile_expr(*e.binop.right,
-                                                         ctx);
+                                                         ctx, reg);
                                 printf("shl %s, %d\n", reg, n);
                                 return reg;
                         }
-                } char *regl = compile_expr(*e.binop.left, ctx);
-                char *regr = compile_expr(*e.binop.right, ctx);
+                } char *regl = compile_expr(*e.binop.left, ctx, reg);
+                char *regr = compile_expr(*e.binop.right, ctx, NULL);
                 switch (e.binop.op) {
                 case OP_PLUS:
                         printf("add %s, %s\n", regl, regr);
@@ -1328,13 +1335,17 @@ compile_expr(Expr e, SContext *ctx)
                 while (ctx) {
                         if (!strcmp(e.var, ctx->name)) {
                                 int reg = alloc_reg();
-                                printf("mov %s, [rsp + %d]\n",
-                                       registers[reg], (nvar - ctx->num) * 8);
+                                printf("mov %s, [%s + %d]\n",
+                                       registers[reg], var_accessor,
+                                       (nvar - ctx->num) * 8);
                                 return registers[reg];
                         } ctx = ctx->next;
-                } int reg = alloc_reg();
-                printf("mov %s, [_%s]\n", registers[reg], e.var);
-                return registers[reg];
+                }
+                char *ret_reg;
+                if (reg) ret_reg = reg;
+                else ret_reg = registers[alloc_reg()];
+                printf("mov %s, [_%s]\n", ret_reg, e.var);
+                return ret_reg;
         case LETIN: {
                 struct decllist *p = e.letin.decl;
                 FreeBSSTable *f_table = NULL;
@@ -1352,7 +1363,7 @@ compile_expr(Expr e, SContext *ctx)
                         printf("push QWORD [_%s]\n", s);
                         p = p->next;
                         ++length;
-                } char *reg = compile_body(e.letin.expr, ctx);
+                } char *reg = compile_body(e.letin.expr, ctx, reg);
                 printf("add rsp, %d\n", length << 3);
                 nvar -= length;
                 while (f_table) {
@@ -1370,7 +1381,8 @@ compile_expr(Expr e, SContext *ctx)
                                 printf("push %s\n", registers[i]);
                                 ++nvar;
                         }
-                char *fun = compile_expr(*e.fun_call.fun, ctx);
+                char *fun = compile_expr(*e.fun_call.fun, ctx, "rax");
+                printf("mov rax, %s\n", fun);
                 struct elist *p = e.fun_call.args;
                 while (p) {
                         char *arg = compile_expr(p->expr, ctx);
@@ -1382,18 +1394,20 @@ compile_expr(Expr e, SContext *ctx)
                 } printf("call %s\n", fun);
                 printf("add rsp, %d\n", length << 3);
                 nvar -= length;
-                int reg = alloc_reg();
+                char *ret_reg;
+                if (reg) ret_reg = reg;
+                else ret_reg = registers[alloc_reg()];
                 free_reg(fun);
-                printf("mov %s, rax\n", registers[reg]);
+                printf("mov %s, rax\n", ret_reg);
                 for (int i = NREG - 1; i >= 0; --i)
                         if (local_used[i]) {
                                 printf("pop %s\n", registers[i]);
                                 --nvar;
                         }
-                return registers[reg];
+                return ret_reg;
         }
         case IF_CLAUSE: {
-                char *scratch_reg = compile_expr(*e.if_clause.condition, ctx);
+                char *scratch_reg = compile_expr(*e.if_clause.condition, ctx, NULL);
                 char label_if[128], label_else[128], label_end[128];
                 int reg = alloc_reg();
                 sprintf(label_if, "__if%d", ++ndecl);
