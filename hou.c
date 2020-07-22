@@ -1236,18 +1236,11 @@ compile_expr(Expr e, SContext *ctx, char *reg)
 
         switch (e.type) {
         case INT: {
-                if (reg) {
-                        if (e.num) printf("mov %s, %d\n", reg, e.num);
-                        else printf("xor %s, %s\n", reg, reg);
-
-                } else {
-                        int reg = alloc_reg();
-                        if (e.num)
-                                printf("mov %s, %d\n", registers[reg], e.num);
-                        else printf("xor %s, %s\n", registers[reg],
-                                    registers[reg]);
-                        return registers[reg];
-                }
+                char *ret_reg = reg ? reg : registers[alloc_reg()];
+                if (e.num) printf("mov %s, %d\n", ret_reg, e.num);
+                else printf("xor %s, %s\n", ret_reg,
+                            ret_reg);
+                return ret_reg;
         }
         case BINOP: {
                 if (e.binop.right->type == INT) {
@@ -1267,18 +1260,20 @@ compile_expr(Expr e, SContext *ctx, char *reg)
                         int n = is_power_of2(e.binop.right->num);
                         if (n != -1) {
                                 if (e.binop.op == OP_TIMES) {
-                                        char *reg = compile_expr(*e.binop.left,
+                                        char *ret_reg = compile_expr(*e.binop.left,
                                                                  ctx, reg);
-                                        printf("shl %s, %d\n", reg, n);
-                                        return reg;
+                                        printf("shl %s, %d\n", ret_reg, n);
+                                        return ret_reg;
                                 } if (e.binop.op == OP_DIVISE) {
-                                        char *reg = compile_expr(*e.binop.left,
+                                        char *ret_reg = compile_expr(*e.binop.left,
                                                                  ctx, reg);
-                                        printf("shr %s, %d\n", reg, n);
-                                        return reg;
+                                        printf("shr %s, %d\n", ret_reg, n);
+                                        return ret_reg;
                                 }
                         }
-                } if (e.binop.left->type == INT) {
+                }
+
+                if (e.binop.left->type == INT) {
                         if (e.binop.left->num == 0)
                                 switch(e.binop.op) {
                                 case OP_PLUS:
@@ -1295,7 +1290,8 @@ compile_expr(Expr e, SContext *ctx, char *reg)
                                 printf("shl %s, %d\n", reg, n);
                                 return reg;
                         }
-                } char *regl = compile_expr(*e.binop.left, ctx, reg);
+                }
+                char *regl = compile_expr(*e.binop.left, ctx, reg);
                 char *regr = compile_expr(*e.binop.right, ctx, NULL);
                 switch (e.binop.op) {
                 case OP_PLUS:
@@ -1331,21 +1327,19 @@ compile_expr(Expr e, SContext *ctx, char *reg)
                 } free_reg(regr);
                 return regl;
         }
-        case VAR:
+        case VAR: {
+                char *ret_reg = reg ? reg : registers[alloc_reg()];
                 while (ctx) {
                         if (!strcmp(e.var, ctx->name)) {
-                                int reg = alloc_reg();
                                 printf("mov %s, [%s + %d]\n",
-                                       registers[reg], var_accessor,
+                                       ret_reg, var_accessor,
                                        (nvar - ctx->num) * 8);
-                                return registers[reg];
+                                return ret_reg;
                         } ctx = ctx->next;
                 }
-                char *ret_reg;
-                if (reg) ret_reg = reg;
-                else ret_reg = registers[alloc_reg()];
                 printf("mov %s, [_%s]\n", ret_reg, e.var);
                 return ret_reg;
+        }
         case LETIN: {
                 struct decllist *p = e.letin.decl;
                 FreeBSSTable *f_table = NULL;
@@ -1375,41 +1369,41 @@ compile_expr(Expr e, SContext *ctx, char *reg)
                 int length = 0;
                 /* Saves registers. */
                 int local_used[NREG];
+                printf("push rax\n");
+                ++nvar;
                 memcpy(local_used, used_registers, NREG * sizeof(int));
                 for (int i = 0; i < NREG; ++i)
                         if (local_used[i]) {
                                 printf("push %s\n", registers[i]);
                                 ++nvar;
                         }
-                char *fun = compile_expr(*e.fun_call.fun, ctx, "rax");
-                printf("mov rax, %s\n", fun);
+                compile_expr(*e.fun_call.fun, ctx, "rax");
                 struct elist *p = e.fun_call.args;
                 while (p) {
-                        char *arg = compile_expr(p->expr, ctx);
+                        char *arg = compile_expr(p->expr, ctx, NULL);
                         printf("push %s\n", arg);
                         ++nvar;
                         free_reg(arg);
                         p = p->next;
                         ++length;
-                } printf("call %s\n", fun);
+                } printf("call rax\n");
                 printf("add rsp, %d\n", length << 3);
                 nvar -= length;
-                char *ret_reg;
-                if (reg) ret_reg = reg;
-                else ret_reg = registers[alloc_reg()];
-                free_reg(fun);
+                char *ret_reg = reg ? reg : registers[alloc_reg()];
                 printf("mov %s, rax\n", ret_reg);
                 for (int i = NREG - 1; i >= 0; --i)
                         if (local_used[i]) {
                                 printf("pop %s\n", registers[i]);
                                 --nvar;
                         }
+                printf("pop rax\n");
+                --nvar;
                 return ret_reg;
         }
         case IF_CLAUSE: {
                 char *scratch_reg = compile_expr(*e.if_clause.condition, ctx, NULL);
                 char label_if[128], label_else[128], label_end[128];
-                int reg = alloc_reg();
+                char *ret_reg = reg ? reg : registers[alloc_reg()];
                 sprintf(label_if, "__if%d", ++ndecl);
                 sprintf(label_end, "__end%d", ndecl);
                 sprintf(label_else, "__else%d", ndecl);
@@ -1417,37 +1411,36 @@ compile_expr(Expr e, SContext *ctx, char *reg)
                        "je %s\n"
                        "jmp %s\n"
                        "%s:\n", scratch_reg, label_if, label_else, label_if);
-                scratch_reg = compile_body(e.if_clause.if_expr, ctx);
+                scratch_reg = compile_body(e.if_clause.if_expr, ctx, ret_reg);
                 printf("mov %s, %s\n"
-                       "jmp %s\n", registers[reg],
+                       "jmp %s\n", ret_reg,
                        scratch_reg, label_end);
                 free_reg(scratch_reg);
                 printf("%s:\n", label_else);
-                if (e.if_clause.else_expr) {
-                        scratch_reg = compile_body(e.if_clause.else_expr, ctx);
-                        printf("mov %s, %s\n", registers[reg], scratch_reg);
-                        free_reg(scratch_reg);
-                } printf("%s:\n", label_end);
-                return registers[reg];
+                if (e.if_clause.else_expr)
+                        scratch_reg = compile_body(e.if_clause.else_expr, ctx, ret_reg);
+                printf("%s:\n", label_end);
+                return ret_reg;
         }
         case LAM: {
+                /* FIXME */
                 char *reg  = alloc_bss(8);
-                int retreg = alloc_reg();
+                char *ret_reg = reg ? reg : registers[alloc_reg()];
                 compile_decl(*e.lam, ctx, reg);
-                printf("mov %s, [_%s]\n", registers[retreg], reg);
-                return registers[retreg];
+                printf("mov %s, [_%s]\n", ret_reg, reg);
+                return ret_reg;
         }
         }
         return "";
 }
 
 char *
-compile_body(struct elist *body, SContext *ctx)
+compile_body(struct elist *body, SContext *ctx, char *reg)
 {
         char *s;
 
         while (body) {
-                s = compile_expr(body->expr, ctx);
+                s = compile_expr(body->expr, ctx, reg);
                 if (body->next) free_reg(s);
                 body = body->next;
         } return s;
@@ -1459,7 +1452,7 @@ compile_decl(Decl decl, SContext *ctx, char *name)
 
         add_bss(name, 8);
         if (decl.type == VAR_DECL) {
-                char *reg = compile_body(decl.var_decl, ctx);
+                char *reg = compile_body(decl.var_decl, ctx, NULL);
                 printf("mov [_%s], %s\n", name, reg);
                 free_reg(reg);
         } else {
@@ -1475,7 +1468,7 @@ compile_decl(Decl decl, SContext *ctx, char *name)
                         ++length;
                         p = p->next;
                 }  ++nvar;
-                char *reg = compile_body(decl.fun_decl.body, ctx);
+                char *reg = compile_body(decl.fun_decl.body, ctx, NULL);
                 printf("mov rax, %s\n"
                        "ret\n"
                        "%s:\n", reg, label);
