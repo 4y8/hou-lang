@@ -1137,8 +1137,7 @@ add_bss(char *name, int size)
         while (p) {
                 if (!strcmp(name, p->name)) return;
                 p = p->next;
-        }
-        nbss_table = safe_malloc(sizeof(BSSTable));
+        } nbss_table = safe_malloc(sizeof(BSSTable));
         nbss_table->name = safe_malloc(64);
         strncpy(nbss_table->name, name, 64);
         nbss_table->size = size;
