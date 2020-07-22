@@ -1261,7 +1261,7 @@ compile_expr(Expr e, SContext *ctx, char *reg)
                         if (n != -1) {
                                 if (e.binop.op == OP_TIMES) {
                                         char *ret_reg = compile_expr(*e.binop.left,
-                                                                 ctx, reg);
+                                                                     ctx, reg);
                                         printf("shl %s, %d\n", ret_reg, n);
                                         return ret_reg;
                                 } if (e.binop.op == OP_DIVISE) {
@@ -1271,9 +1271,7 @@ compile_expr(Expr e, SContext *ctx, char *reg)
                                         return ret_reg;
                                 }
                         }
-                }
-
-                if (e.binop.left->type == INT) {
+                } if (e.binop.left->type == INT) {
                         if (e.binop.left->num == 0)
                                 switch(e.binop.op) {
                                 case OP_PLUS:
@@ -1285,10 +1283,10 @@ compile_expr(Expr e, SContext *ctx, char *reg)
                                 }
                         int n = is_power_of2(e.binop.left->num);
                         if (n != -1 && e.binop.op == OP_TIMES) {
-                                char *reg = compile_expr(*e.binop.right,
+                                char *ret_reg = compile_expr(*e.binop.right,
                                                          ctx, reg);
-                                printf("shl %s, %d\n", reg, n);
-                                return reg;
+                                printf("shl %s, %d\n", ret_reg, n);
+                                return ret_reg;
                         }
                 }
                 char *regl = compile_expr(*e.binop.left, ctx, reg);
@@ -1336,8 +1334,7 @@ compile_expr(Expr e, SContext *ctx, char *reg)
                                        (nvar - ctx->num) * 8);
                                 return ret_reg;
                         } ctx = ctx->next;
-                }
-                printf("mov %s, [_%s]\n", ret_reg, e.var);
+                } printf("mov %s, [_%s]\n", ret_reg, e.var);
                 return ret_reg;
         }
         case LETIN: {
@@ -1357,13 +1354,14 @@ compile_expr(Expr e, SContext *ctx, char *reg)
                         printf("push QWORD [_%s]\n", s);
                         p = p->next;
                         ++length;
-                } char *reg = compile_body(e.letin.expr, ctx, reg);
+                }
+                char *ret_reg = compile_body(e.letin.expr, ctx, reg);
                 printf("add rsp, %d\n", length << 3);
                 nvar -= length;
                 while (f_table) {
                         free_bss(f_table->name, f_table->size);
                         f_table = f_table->next;
-                } return reg;
+                } return ret_reg;
         }
         case FUN_CALL: {
                 int length = 0;
@@ -1411,21 +1409,18 @@ compile_expr(Expr e, SContext *ctx, char *reg)
                        "je %s\n"
                        "jmp %s\n"
                        "%s:\n", scratch_reg, label_if, label_else, label_if);
-                scratch_reg = compile_body(e.if_clause.if_expr, ctx, ret_reg);
-                printf("mov %s, %s\n"
-                       "jmp %s\n", ret_reg,
-                       scratch_reg, label_end);
-                free_reg(scratch_reg);
+                compile_body(e.if_clause.if_expr, ctx, ret_reg);
+                printf("jmp %s\n", label_end);
                 printf("%s:\n", label_else);
                 if (e.if_clause.else_expr)
-                        scratch_reg = compile_body(e.if_clause.else_expr, ctx, ret_reg);
+                        compile_body(e.if_clause.else_expr, ctx, ret_reg);
                 printf("%s:\n", label_end);
                 return ret_reg;
         }
         case LAM: {
                 /* FIXME */
-                char *reg  = alloc_bss(8);
                 char *ret_reg = reg ? reg : registers[alloc_reg()];
+                char *reg  = alloc_bss(8);
                 compile_decl(*e.lam, ctx, reg);
                 printf("mov %s, [_%s]\n", ret_reg, reg);
                 return ret_reg;
