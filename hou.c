@@ -1416,6 +1416,7 @@ compile_expr(Expr e, SContext *ctx, char *reg)
         }
         case LAM: {
                 /* FIXME */
+                unsigned int save_nvar = nvar;
                 char *ret_reg = reg ? reg : registers[alloc_reg()];
                 char *scratch_reg = registers[alloc_reg()];
                 char label[64];
@@ -1455,16 +1456,17 @@ compile_expr(Expr e, SContext *ctx, char *reg)
                 printf("jmp %s\n", aft_label);
                 printf("%s:\n", label);
                 unsigned int old_nvar = nvar;
-                for (unsigned int i = 0; i < old_nvar; ++i) {
+                for (unsigned int i = 1; i < old_nvar; ++i) {
                         printf("push QWORD [rax + %d]\n", i << 3);
                         ++nvar;
                 } ++nvar;
                 compile_body(e.lam->fun_decl.body, ctx, "rax");
                 printf("add rsp, %d\n"
-                       "ret\n", old_nvar << 3);
+                       "ret\n", (old_nvar - 1) << 3);
                 printf("%s:\n", aft_label);
                 printf("mov %s, [%s]\n", ret_reg, scratch_reg);
                 free_reg(scratch_reg);
+                nvar = save_nvar;
                 return ret_reg;
         }
         }
