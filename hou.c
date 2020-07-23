@@ -1417,12 +1417,13 @@ compile_expr(Expr e, SContext *ctx, char *reg)
         case LAM: {
                 /* FIXME */
                 char *ret_reg = reg ? reg : registers[alloc_reg()];
+                char *scratch_reg = registers[alloc_reg()];
                 char label[64];
                 char aft_label[64];
                 sprintf(label, "__decl%d", ++ndecl);
                 sprintf(aft_label, "__decl%d", ++ndecl);
                 printf("push rax\n"
-                         "push rsp\n");
+                       "push rsp\n");
                 for (unsigned int i = 0; i < NREG; ++i)
                         printf("push %s\n", registers[i]);
                 printf("xor eax, eax\n"
@@ -1437,7 +1438,7 @@ compile_expr(Expr e, SContext *ctx, char *reg)
                         printf("pop %s\n", registers[i]);
                 printf("pop rsp\n"
                        "mov %s, rax\n"
-                       "mov QWORD [%s], %s\n", ret_reg, ret_reg, label);
+                       "mov QWORD [%s], %s\n", scratch_reg, scratch_reg, label);
                 printf("pop rax\n");
                 unsigned int length = 1;
                 struct elist *p = e.lam->fun_decl.args;
@@ -1446,15 +1447,15 @@ compile_expr(Expr e, SContext *ctx, char *reg)
                         ++length;
                         p = p->next;
                 } printf("push rdi\n");
-                for (unsigned int i = 1; i <= nvar + 1; ++i)
+                for (unsigned int i = 1; i < nvar + 1; ++i)
                         printf("mov rdi, QWORD [rsp + %d]\n"
                                "mov QWORD [%s + %d], rdi\n",
-                               i << 3, ret_reg, i << 3);
+                               i << 3, scratch_reg, i << 3);
                 printf("pop rdi\n");
                 printf("jmp %s\n", aft_label);
                 printf("%s:\n", label);
                 unsigned int old_nvar = nvar;
-                for (unsigned int i = 0; i <= old_nvar; ++i) {
+                for (unsigned int i = 0; i < old_nvar; ++i) {
                         printf("push QWORD [rax + %d]\n", i << 3);
                         ++nvar;
                 } ++nvar;
@@ -1462,6 +1463,8 @@ compile_expr(Expr e, SContext *ctx, char *reg)
                 printf("add rsp, %d\n"
                        "ret\n", old_nvar << 3);
                 printf("%s:\n", aft_label);
+                printf("mov %s, [%s]\n", ret_reg, scratch_reg);
+                free_reg(scratch_reg);
                 return ret_reg;
         }
         }
