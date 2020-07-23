@@ -1,0 +1,2 @@
+id(a) -> (\x -> x)(a)
+main = id(id(6))
