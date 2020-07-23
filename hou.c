@@ -1228,8 +1228,6 @@ cmp_e(char *l, char *r, char *op)
                ".__label%d:\n", l, r, l, op, ndecl, l, ndecl);
 }
 
-char *var_accessor = "rsp";
-
 char *
 compile_expr(Expr e, SContext *ctx, char *reg)
 {
@@ -1329,9 +1327,8 @@ compile_expr(Expr e, SContext *ctx, char *reg)
                 char *ret_reg = reg ? reg : registers[alloc_reg()];
                 while (ctx) {
                         if (!strcmp(e.var, ctx->name)) {
-                                printf("mov %s, [%s + %d]\n",
-                                       ret_reg, var_accessor,
-                                       (nvar - ctx->num) * 8);
+                                printf("mov %s, [rsp + %d]\n",
+                                       ret_reg, (nvar - ctx->num) * 8);
                                 return ret_reg;
                         } ctx = ctx->next;
                 } printf("mov %s, [_%s]\n", ret_reg, e.var);
@@ -1388,12 +1385,12 @@ compile_expr(Expr e, SContext *ctx, char *reg)
                 printf("add rsp, %d\n", length << 3);
                 nvar -= length;
                 char *ret_reg = reg ? reg : registers[alloc_reg()];
-                printf("mov %s, rax\n", ret_reg);
                 for (int i = NREG - 1; i >= 0; --i)
                         if (local_used[i]) {
                                 printf("pop %s\n", registers[i]);
                                 --nvar;
                         }
+                printf("mov %s, rax\n", ret_reg);
                 printf("pop rax\n");
                 --nvar;
                 return ret_reg;
@@ -1418,30 +1415,29 @@ compile_expr(Expr e, SContext *ctx, char *reg)
                 return ret_reg;
         }
         case LAM: {
+                /* FIXME */
                 char *ret_reg = reg ? reg : registers[alloc_reg()];
                 SContext *p = ctx;
                 unsigned int length = 0;
                 while (p) {
                         ++length;
                         p = p->next;
-                }
-                /* FIXME */
-                printf("push rax\n"
-                       "push rsi\n"
-                       "push rcx\n"
-                       "push rdx\n"
-                       "push r8\n"
-                       "push r9\n"
-                       "push r10\n"
-                       "push r11\n");
-                printf("pop r11\n"
-                       "pop r10\n"
-                       "pop r9\n"
-                       "pop r8\n"
-                       "pop rdx\n"
-                       "pop rcx\n"
-                       "pop rsi\n"
-                       "pop rax\n");
+                } printf("push rax\n"
+                         "push rsp\n");
+                for (unsigned int i = 0; i < NREG; ++i)
+                        printf("push %s\n", registers[i]);
+                printf("xor eax, eax\n"
+                       "mov rbx, rsp\n"
+                       "and rbx, 1111b\n"
+                       "sub rsp, rbx\n"
+                       "mov rdi, %d"
+                       "xor rax, rax"
+                       "call malloc wrt ..plt"
+                       "add rsp, rbx", (length + 1) << 3);
+                for (unsigned int i = 0; i < NREG; ++i)
+                        printf("pop %s\n", registers[i]);
+                printf("pop rsp\n");
+                printf("pop rax\n");
                 char *reg  = alloc_bss(8);
                 compile_decl(*e.lam, ctx, reg);
                 printf("mov %s, [_%s]\n", ret_reg, reg);
