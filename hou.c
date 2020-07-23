@@ -1418,8 +1418,30 @@ compile_expr(Expr e, SContext *ctx, char *reg)
                 return ret_reg;
         }
         case LAM: {
-                /* FIXME */
                 char *ret_reg = reg ? reg : registers[alloc_reg()];
+                SContext *p = ctx;
+                unsigned int length = 0;
+                while (p) {
+                        ++length;
+                        p = p->next;
+                }
+                /* FIXME */
+                printf("push rax\n"
+                       "push rsi\n"
+                       "push rcx\n"
+                       "push rdx\n"
+                       "push r8\n"
+                       "push r9\n"
+                       "push r10\n"
+                       "push r11\n");
+                printf("pop r11\n"
+                       "pop r10\n"
+                       "pop r9\n"
+                       "pop r8\n"
+                       "pop rdx\n"
+                       "pop rcx\n"
+                       "pop rsi\n"
+                       "pop rax\n");
                 char *reg  = alloc_bss(8);
                 compile_decl(*e.lam, ctx, reg);
                 printf("mov %s, [_%s]\n", ret_reg, reg);
@@ -1500,6 +1522,7 @@ compile_decls(struct decllist *decls)
 char *prolog =
         "DEFAULT REL\n"
         "global main\n"
+        "extern malloc\n"
         "section .text\n"
         "main:\n";
 

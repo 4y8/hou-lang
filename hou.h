@@ -200,8 +200,8 @@ Context *infer_decls(struct decllist *, Context *);
 Subst *unify(Type *, Type *);
 Subst *bind(unsigned int, Type *);
 
-char *compile_expr(Expr, SContext *);
-char *compile_body(struct elist *, SContext *);
+char *compile_expr(Expr, SContext *, char *);
+char *compile_body(struct elist *, SContext *, char *);
 void compile_decl(Decl, SContext *, char *);
 
 void assert(unsigned int);
