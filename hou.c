@@ -1429,21 +1429,33 @@ compile_expr(Expr e, SContext *ctx, char *reg)
                        "mov rbx, rsp\n"
                        "and rbx, 1111b\n"
                        "sub rsp, rbx\n"
-                       "mov rdi, %d"
-                       "xor rax, rax"
-                       "call malloc wrt ..plt"
-                       "add rsp, rbx", (nvar + 1) << 3);
+                       "mov rdi, %d\n"
+                       "xor rax, rax\n"
+                       "call malloc wrt ..plt\n"
+                       "add rsp, rbx\n", (nvar + 1) << 3);
                 for (unsigned int i = 0; i < NREG; ++i)
                         printf("pop %s\n", registers[i]);
                 printf("pop rsp\n"
                        "mov %s, rax\n"
                         "mov QWORD [%s], %s\n", ret_reg, ret_reg, label);
                 printf("pop rax\n");
-                for (unsigned int i = 0; i <= nvar; ++i)
-                        printf("mov QWORD [%s + %d], QWORD [rsp + %d]\n",
-                               ret_reg, nvar << 3, nvar << 3);
+                unsigned int length = 1;
+                struct elist *p = e.lam->fun_decl.args;
+                while (p) {
+                        ctx = add_sctx(ctx, p->expr.var, ++nvar);
+                        ++length;
+                        p = p->next;
+                } for (unsigned int i = 0; i <= nvar; ++i)
+                          printf("mov QWORD [%s + %d], QWORD [rsp + %d]\n",
+                                 ret_reg, i << 3, i << 3);
                 printf("jmp %s\n", aft_label);
                 printf("%s:\n", label);
+                for (unsigned int i = 0; i <= nvar; ++i)
+                        printf("push QWORD [rax + %d]\n", i << 3);
+                compile_body(e.lam->fun_decl.body, ctx, "rax");
+                printf("add rsp, %d\n"
+                       "ret\n", nvar << 3);
+                printf("%s:\n", aft_label);
                 return ret_reg;
         }
         }
