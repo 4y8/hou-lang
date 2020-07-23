@@ -1433,11 +1433,11 @@ compile_expr(Expr e, SContext *ctx, char *reg)
                        "xor rax, rax\n"
                        "call malloc wrt ..plt\n"
                        "add rsp, rbx\n", (nvar + 1) << 3);
-                for (unsigned int i = 0; i < NREG; ++i)
+                for (int i = NREG - 1; i >= 0; --i)
                         printf("pop %s\n", registers[i]);
                 printf("pop rsp\n"
                        "mov %s, rax\n"
-                        "mov QWORD [%s], %s\n", ret_reg, ret_reg, label);
+                       "mov QWORD [%s], %s\n", ret_reg, ret_reg, label);
                 printf("pop rax\n");
                 unsigned int length = 1;
                 struct elist *p = e.lam->fun_decl.args;
@@ -1445,16 +1445,22 @@ compile_expr(Expr e, SContext *ctx, char *reg)
                         ctx = add_sctx(ctx, p->expr.var, ++nvar);
                         ++length;
                         p = p->next;
-                } for (unsigned int i = 0; i <= nvar; ++i)
-                          printf("mov QWORD [%s + %d], QWORD [rsp + %d]\n",
-                                 ret_reg, i << 3, i << 3);
+                } printf("push rdi\n");
+                for (unsigned int i = 1; i <= nvar + 1; ++i)
+                        printf("mov rdi, QWORD [rsp + %d]\n"
+                               "mov QWORD [%s + %d], rdi\n",
+                               i << 3, ret_reg, i << 3);
+                printf("pop rdi\n");
                 printf("jmp %s\n", aft_label);
                 printf("%s:\n", label);
-                for (unsigned int i = 0; i <= nvar; ++i)
+                unsigned int old_nvar = nvar;
+                for (unsigned int i = 0; i <= old_nvar; ++i) {
                         printf("push QWORD [rax + %d]\n", i << 3);
+                        ++nvar;
+                } ++nvar;
                 compile_body(e.lam->fun_decl.body, ctx, "rax");
                 printf("add rsp, %d\n"
-                       "ret\n", nvar << 3);
+                       "ret\n", old_nvar << 3);
                 printf("%s:\n", aft_label);
                 return ret_reg;
         }
