@@ -1419,10 +1419,9 @@ compile_expr(Expr e, SContext *ctx, char *reg)
                 unsigned int save_nvar = nvar;
                 SContext *p = ctx;
                 while (p) {
-                        p->num -= nvar;
+                        p->num += nvar + 1;
                         p = p->next;
-                }
-                char *ret_reg = reg ? reg : registers[alloc_reg()];
+                } char *ret_reg = reg ? reg : registers[alloc_reg()];
                 char *scratch_reg = registers[alloc_reg()];
                 char label[64];
                 char aft_label[64];
@@ -1456,22 +1455,28 @@ compile_expr(Expr e, SContext *ctx, char *reg)
                 for (unsigned int i = 1; i <= nvar; ++i)
                         printf("mov rdi, QWORD [rsp + %d]\n"
                                "mov QWORD [%s + %d], rdi\n",
-                               (i + 2) << 3, scratch_reg, i << 3);
+                               (i + 1) << 3, scratch_reg, i << 3);
                 printf("pop rdi\n");
                 printf("jmp %s\n", aft_label);
                 printf("%s:\n", label);
                 unsigned int old_nvar = nvar;
                 for (unsigned int i = 1; i <= old_nvar; ++i) {
-                        printf("push QWORD [rax + %d]\n", i << 3);
+                        printf("push QWORD [rbx + %d]\n", i << 3);
                         ++nvar;
                 } ++nvar;
                 compile_body(e.lam->fun_decl.body, ctx, "rax");
                 printf("add rsp, %d\n"
                        "ret\n", old_nvar << 3);
                 printf("%s:\n", aft_label);
+                printf("mov rbx, %s\n", scratch_reg);
                 printf("mov %s, [%s]\n", ret_reg, scratch_reg);
                 free_reg(scratch_reg);
                 nvar = save_nvar;
+                p = ctx;
+                while (p) {
+                        p->num -= nvar + 1;
+                        p = p->next;
+                }
                 return ret_reg;
         }
         }
@@ -1551,9 +1556,11 @@ char *prolog =
         "global main\n"
         "extern malloc\n"
         "section .text\n"
-        "main:\n";
+        "main:\n"
+        "push rbx\n";
 
 char *epilog =
+        "pop rbx\n"
         "mov rax, 60\n"
         "syscall\n";
 
