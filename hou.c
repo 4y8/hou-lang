@@ -1417,11 +1417,7 @@ compile_expr(Expr e, SContext *ctx, char *reg)
         case LAM: {
                 /* FIXME */
                 unsigned int save_nvar = nvar;
-                SContext *p = ctx;
-                while (p) {
-                        p->num += nvar + 1;
-                        p = p->next;
-                } char *ret_reg = reg ? reg : registers[alloc_reg()];
+                char *ret_reg = reg ? reg : registers[alloc_reg()];
                 char *scratch_reg = registers[alloc_reg()];
                 char label[64];
                 char aft_label[64];
@@ -1447,6 +1443,7 @@ compile_expr(Expr e, SContext *ctx, char *reg)
                 printf("pop rax\n");
                 unsigned int length = 1;
                 struct elist *ap = e.lam->fun_decl.args;
+                SContext *p = ctx;
                 while (ap) {
                         ctx = add_sctx(ctx, ap->expr.var, ++nvar);
                         ++length;
@@ -1464,6 +1461,10 @@ compile_expr(Expr e, SContext *ctx, char *reg)
                         printf("push QWORD [rbx + %d]\n", i << 3);
                         ++nvar;
                 } ++nvar;
+                while (p) {
+                        p->num += nvar + 1;
+                        p = p->next;
+                } int nsave_nvar = nvar;
                 compile_body(e.lam->fun_decl.body, ctx, "rax");
                 printf("add rsp, %d\n"
                        "ret\n", old_nvar << 3);
@@ -1471,12 +1472,11 @@ compile_expr(Expr e, SContext *ctx, char *reg)
                 printf("mov rbx, %s\n", scratch_reg);
                 printf("mov %s, [%s]\n", ret_reg, scratch_reg);
                 free_reg(scratch_reg);
-                nvar = save_nvar;
                 p = ctx;
                 while (p) {
-                        p->num -= nvar + 1;
+                        p->num -= nsave_nvar + 1;
                         p = p->next;
-                }
+                } nvar = save_nvar;
                 return ret_reg;
         }
         }
