@@ -1364,8 +1364,8 @@ compile_expr(Expr e, SContext *ctx, char *reg)
                 int length = 0;
                 /* Saves registers. */
                 int local_used[NREG];
-                printf("push rax\n");
                 ++nvar;
+                if (!reg || strcmp(reg, "rax")) printf("push rax\n");
                 memcpy(local_used, used_registers, NREG * sizeof(int));
                 for (int i = 0; i < NREG; ++i)
                         if (local_used[i]) {
@@ -1391,7 +1391,7 @@ compile_expr(Expr e, SContext *ctx, char *reg)
                                 --nvar;
                         }
                 printf("mov %s, rax\n", ret_reg);
-                printf("pop rax\n");
+                if (!reg || strcmp(reg, "rax")) printf("pop rax\n");
                 --nvar;
                 return ret_reg;
         }
@@ -1417,6 +1417,11 @@ compile_expr(Expr e, SContext *ctx, char *reg)
         case LAM: {
                 /* FIXME */
                 unsigned int save_nvar = nvar;
+                SContext *p = ctx;
+                while (p) {
+                        p->num -= nvar;
+                        p = p->next;
+                }
                 char *ret_reg = reg ? reg : registers[alloc_reg()];
                 char *scratch_reg = registers[alloc_reg()];
                 char label[64];
@@ -1434,7 +1439,7 @@ compile_expr(Expr e, SContext *ctx, char *reg)
                        "mov rdi, %d\n"
                        "xor rax, rax\n"
                        "call malloc wrt ..plt\n"
-                       "add rsp, rbx\n", (nvar + 1) << 3);
+                       "add rsp, rbx\n", (nvar + 2) << 3);
                 for (int i = NREG - 1; i >= 0; --i)
                         printf("pop %s\n", registers[i]);
                 printf("pop rsp\n"
@@ -1442,27 +1447,27 @@ compile_expr(Expr e, SContext *ctx, char *reg)
                        "mov QWORD [%s], %s\n", scratch_reg, scratch_reg, label);
                 printf("pop rax\n");
                 unsigned int length = 1;
-                struct elist *p = e.lam->fun_decl.args;
-                while (p) {
-                        ctx = add_sctx(ctx, p->expr.var, ++nvar);
+                struct elist *ap = e.lam->fun_decl.args;
+                while (ap) {
+                        ctx = add_sctx(ctx, ap->expr.var, ++nvar);
                         ++length;
-                        p = p->next;
+                        ap = ap->next;
                 } printf("push rdi\n");
-                for (unsigned int i = 1; i < nvar + 1; ++i)
+                for (unsigned int i = 1; i <= nvar; ++i)
                         printf("mov rdi, QWORD [rsp + %d]\n"
                                "mov QWORD [%s + %d], rdi\n",
-                               i << 3, scratch_reg, i << 3);
+                               (i + 2) << 3, scratch_reg, i << 3);
                 printf("pop rdi\n");
                 printf("jmp %s\n", aft_label);
                 printf("%s:\n", label);
                 unsigned int old_nvar = nvar;
-                for (unsigned int i = 1; i < old_nvar; ++i) {
+                for (unsigned int i = 1; i <= old_nvar; ++i) {
                         printf("push QWORD [rax + %d]\n", i << 3);
                         ++nvar;
                 } ++nvar;
                 compile_body(e.lam->fun_decl.body, ctx, "rax");
                 printf("add rsp, %d\n"
-                       "ret\n", (old_nvar - 1) << 3);
+                       "ret\n", old_nvar << 3);
                 printf("%s:\n", aft_label);
                 printf("mov %s, [%s]\n", ret_reg, scratch_reg);
                 free_reg(scratch_reg);
