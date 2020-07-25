@@ -1,0 +1,3 @@
+Pair(a, b) -> (\f -> f(a, b))
+snd(p) -> p(\a, b -> b)
+main = snd(Pair(2, 3))

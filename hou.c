@@ -742,7 +742,7 @@ add_tfun(Type *t1, Type *t2, int length)
         Type *p;
 
         p = t1;
-        if (p->type == TFUN) {
+        if (p->type == TFUN && length > 1) {
                 while (p->fun.right->type == TFUN && length > 1) {
                         p = p->fun.right;
                         --length;
@@ -1471,23 +1471,23 @@ compile_expr(Expr e, SContext *ctx, char *reg)
                 printf("jmp %s\n", aft_label);
                 printf("%s:\n", label);
                 unsigned int old_nvar = nvar;
-                for (unsigned int i = 1; i <= old_nvar; ++i) {
+                for (unsigned int i = old_nvar - 1; i > 0; --i) {
                         printf("push QWORD [rax + %d]\n", i << 3);
                         ++nvar;
                 } ++nvar;
                 while (p) {
-                        p->num += nvar - 1;
+                        p->num += nvar - old_nvar + 2;
                         p = p->next;
                 } int nsave_nvar = nvar;
                 compile_body(e.lam->fun_decl.body, ctx, "rax");
                 printf("add rsp, %d\n"
-                       "ret\n", old_nvar << 3);
+                       "ret\n", (old_nvar - 1) << 3);
                 printf("%s:\n", aft_label);
                 printf("mov %s, %s\n", ret_reg, scratch_reg);
                 free_reg(scratch_reg);
                 p = ctx;
                 while (p) {
-                        p->num -= nsave_nvar - 1;
+                        p->num -= nvar - old_nvar + 2;
                         p = p->next;
                 } nvar = save_nvar;
                 return ret_reg;
