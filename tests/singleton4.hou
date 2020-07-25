@@ -1,0 +1,5 @@
+Singleton(a) -> \f -> a
+id(a) -> a
+elem(a) -> a(id)
+
+main = Singleton(4)(id)

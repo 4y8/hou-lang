@@ -281,7 +281,7 @@ parse_expr()
                 break;
         }
         case LPARENT:
-                expr = parse_expr();
+                expr = parse_rel();
                 assert(RPARENT);
                 break;
         case BACKS:
@@ -684,9 +684,7 @@ unify(Type *t1, Type *t2)
                 Subst *s2 = unify(app_subst(t1->fun.right, s1),
                                   app_subst(t2->fun.right, s1));
                 s = compose_subst(s1,s2);
-        }
-        else error("Can't unfiy types", 0, 0, TYPE_ERROR);
-
+        } else error("Can't unify types", 0, 0, TYPE_ERROR);
         return s;
 }
 
@@ -739,13 +737,16 @@ gen(Type *t)
 }
 
 Type *
-add_tfun(Type *t1, Type *t2)
+add_tfun(Type *t1, Type *t2, int length)
 {
         Type *p;
 
         p = t1;
         if (p->type == TFUN) {
-                while (p->fun.right->type == TFUN) p = p->fun.right;
+                while (p->fun.right->type == TFUN && length > 1) {
+                        p = p->fun.right;
+                        --length;
+                }
                 p->fun.right = tfun(p->fun.right, t2);
                 return t1;
         } else return tfun(t1, t2);
@@ -787,12 +788,17 @@ infer(Expr expr, Context *ctx)
         case FUN_CALL: {
                 TypeReturn ft = infer(*expr.fun_call.fun, ctx);
                 app_subst_ctx(ft.subst, ctx);
+                /* Get number of arguments */
+                int length = 0;
+                struct elist *p = expr.fun_call.args;
+                while (p) {
+                        ++length;
+                        p = p->next;
+                }
                 TypeReturn at = infer_args(expr.fun_call.args, ctx);
                 Type *s_type = tvar(++nvar);
-                if (!expr.fun_call.args)
-                        at.type = tfun(tlit("unit"), s_type);
-                else
-                        at.type = add_tfun(at.type, s_type);
+                if (!expr.fun_call.args) at.type = tfun(tlit("unit"), s_type);
+                else at.type = add_tfun(at.type, s_type, length);
                 tp.subst = unify(at.type, ft.type);
                 tp.subst = compose_subst(ft.subst, tp.subst);
                 tp.type = app_subst(s_type, tp.subst);
@@ -890,10 +896,16 @@ infer_decl(Decl decl, Context *ctx)
                 } TypeReturn bt = infer_body(decl.fun_decl.body, ctx);
                 app_subst_ctx(bt.subst, ctx);
                 tp.subst = bt.subst;
+                int length = 0;
+                p = decl.fun_decl.args;
+                while (p) {
+                        ++length;
+                        p = p->next;
+                }
                 p = decl.fun_decl.args;
                 TypeReturn at = infer_args(decl.fun_decl.args, ctx);
                 if (!p) at.type = tfun(tlit("unit"), bt.type);
-                else    at.type = add_tfun(at.type, bt.type);
+                else    at.type = add_tfun(at.type, bt.type, length);
                 tp.subst = compose_subst(unify(decl_type, at.type), tp.subst);
                 tp.type = app_subst(at.type, tp.subst);
                 break;
