@@ -141,7 +141,7 @@ lex_while(int (*fun)(int))
         while (fun(*(++s))) {
                 ++i;
                 ++cpos;
-        } str = safe_malloc((i + 1) * sizeof(char));
+        } str = safe_malloc(i + 1);
         strncpy(str, s - i, i);
         str[i] = 0;
         --cpos;
@@ -159,9 +159,7 @@ Token
 lexer()
 {
         Token tok;
-        int    tpos;
 
-        tpos   = -1;
         if (*s == 0) return token(END);
         if (isalpha(*s)) {
                 char *str = lex_while(iside);
@@ -579,8 +577,8 @@ bind(unsigned int var, Type *t)
         Subst *s;
 
         if (t->type == TVAR && t->var == var) s = NULL;
-        else if (occurs(ftv(t), var)) error("Occurs error happend", 0, 0,
-                                             TYPE_ERROR);
+        else if (occurs(ftv(t), var))
+                error("Occurs error happend", 0, 0, TYPE_ERROR);
         else {
                 s = safe_malloc(sizeof(Subst));
                 *s = (Subst){.t = t, .next = NULL, .nvar = var};
@@ -1309,7 +1307,10 @@ compile_expr(Expr e, SContext *ctx, char *reg)
                         break;
                 case OP_DIVISE:{
                         int reg = -1;
-                        if (!strcmp("rdx", regr)) {
+                        if (!reg || strcmp(regl, "rax")) {
+                                printf("push rax\n");
+                                ++nvar;
+                        } if (!strcmp("rdx", regr)) {
                                 reg = alloc_reg();
                                 printf("mov %s, rdx\n", registers[reg]);
                                 regr = safe_malloc(4);
@@ -1321,7 +1322,10 @@ compile_expr(Expr e, SContext *ctx, char *reg)
                                  "mov %s, rax\n"
                                  "pop rdx\n", regl, regr, regl);
                         if (reg != -1) used_registers[reg] = 0;
-                        break;
+                        if (!reg || strcmp(regl, "rax")) {
+                                printf("pop rax\n");
+                                --nvar;
+                        } break;
                 }
                 case OP_LOW:    cmp_e(regl, regr, "l");   break;
                 case OP_LOWE:   cmp_e(regl, regr, "le");  break;
@@ -1349,19 +1353,17 @@ compile_expr(Expr e, SContext *ctx, char *reg)
                 int length = 0;
                 while (p) {
                         char *s = alloc_bss(8);
-                        FreeBSSTable *nf_table = safe_malloc(sizeof(FreeBSSTable));
+                        FreeBSSTable *nf_table =
+                                safe_malloc(sizeof(FreeBSSTable));
                         *nf_table = (FreeBSSTable){.name = s, .size = 8,
                                                    .next = f_table};
                         f_table = nf_table;
-
                         compile_decl(p->decl, ctx, s);
                         ctx = add_sctx(ctx, p->decl.name, ++nvar);
-
                         printf("push QWORD [_%s]\n", s);
                         p = p->next;
                         ++length;
-                }
-                char *ret_reg = compile_body(e.letin.expr, ctx, reg);
+                } char *ret_reg = compile_body(e.letin.expr, ctx, reg);
                 printf("add rsp, %d\n", length << 3);
                 nvar -= length;
                 while (f_table) {
@@ -1387,9 +1389,9 @@ compile_expr(Expr e, SContext *ctx, char *reg)
                 while (p) {
                         char *arg = compile_expr(p->expr, ctx, NULL);
                         printf("push %s\n", arg);
-                        ++nvar;
                         free_reg(arg);
                         p = p->next;
+                        ++nvar;
                         ++length;
                 } printf("call [rax]\n");
                 printf("add rsp, %d\n", length << 3);
@@ -1535,7 +1537,8 @@ compile_decl(Decl decl, SContext *ctx, char *name)
                 add_bss(temp, 8);
                 printf("lea %s, [__%s%d]\n"
                        "mov [_%s], %s\n"
-                       "mov QWORD [_%s], QWORD _%s\n", reg, name, n, temp, reg, name, temp);
+                       "mov QWORD [_%s], QWORD _%s\n", reg, name, n, temp, reg,
+                       name, temp);
                 free_reg(reg);
                 nvar -= length;
         }
