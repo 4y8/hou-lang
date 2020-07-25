@@ -425,6 +425,8 @@ parse_rel()
                                 binop(e, parse_add(), OP_LOWE) :
                                 binop(e, parse_add(), OP_LOW);
                 else if (peek(EQUAL)) e = binop(e, parse_add(), OP_EQUAL);
+                else if (peek(EXCLAM) && peek(EQUAL))
+                        e = binop(e, parse_add(), OP_NEQUAL);
                 else return e;
         }
 }
@@ -773,6 +775,7 @@ infer(Expr expr, Context *ctx)
                 case OP_LOWE:
                 case OP_EQUAL:
                 case OP_GREAT:
+                case OP_NEQUAL:
                 case OP_LOW: tp.type = tlit("bool"); break;
                 }
                 break;
@@ -967,15 +970,16 @@ op_to_char(unsigned int op)
 {
 
         switch (op) {
+        case OP_LOW:    return "<";
         case OP_PLUS:   return "+";
+        case OP_LOWE:   return "<=";
+        case OP_GREAT:  return ">";
         case OP_MINUS:  return "-";
+        case OP_EQUAL:  return "=";
         case OP_TIMES:  return "*";
         case OP_DIVISE: return "/";
-        case OP_LOWE:   return "<=";
-        case OP_LOW:    return "<";
         case OP_GREATE: return ">=";
-        case OP_GREAT:  return ">";
-        case OP_EQUAL:  return "=";
+        case OP_NEQUAL: return "!=";
         }
         return "";
 }
@@ -1325,6 +1329,7 @@ compile_expr(Expr e, SContext *ctx, char *reg)
                 case OP_EQUAL:  cmp_e(regl, regr, "e");   break;
                 case OP_GREAT:  cmp_e(regl, regr, "g");   break;
                 case OP_GREATE: cmp_e(regl, regr, "ge");  break;
+                case OP_NEQUAL: cmp_e(regl, regr, "ne");  break;
                 } free_reg(regr);
                 return regl;
         }
