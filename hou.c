@@ -6,7 +6,7 @@
 #include "hou.h"
 
 #define NKEYWORD 6
-#define NPUNCT   12
+#define NPUNCT   13
 
 unsigned int linum;
 unsigned int cpos;
@@ -18,7 +18,7 @@ KeywordToken keywords[NKEYWORD] = {
 PuncToken punctuation[NPUNCT] = {
         {DOT, '.'}, {COL, ','}, {DIVISE, '/'}, {SEMICOL, ';'}, {PLUS, '+'},
         {TIMES, '*'}, {LPARENT, '('}, {RPARENT, ')'}, {EQUAL, '='}, {LOW, '<'},
-        {GREAT, '>'}, {BACKS, '\\'}
+        {GREAT, '>'}, {BACKS, '\\'}, {EXCLAM, '!'}
 };
 
 MemoryTable *mem = NULL;
@@ -291,7 +291,6 @@ parse_expr()
                                     .fun_decl.args = parse_arg(ARR),
                                     .fun_decl.body = parse_body()};
                 break;
-
         default:
                 error("Unexpected token.", tok.linum, tok.cpos,
                       SYNTAX_ERROR);
@@ -388,7 +387,6 @@ parse_op(Expr * (*fun)(), unsigned int op0,
         Expr *e;
 
         expr = fun();
-        e = safe_malloc(sizeof(struct expr));
         e = expr;
         for (;;) {
                 if (peek(op0)) e = binop(e, fun(), op1);
@@ -416,7 +414,6 @@ parse_rel()
         Expr *e;
 
         expr = parse_add();
-        e = safe_malloc(sizeof(struct expr));
         e = expr;
         for (;;) {
                 if (peek(GREAT))
@@ -475,8 +472,7 @@ parse_arg(unsigned int sep)
                         error("Unexpected token.", act_token().linum,
                               act_token().cpos, SYNTAX_ERROR);
                 p = p->next;
-                if (!peek(sep))
-                        assert(COL);
+                if (!peek(sep)) assert(COL);
         } return args.next;
 }
 
@@ -693,8 +689,7 @@ find_ctx(char *name, Context *ctx)
 {
 
         while (ctx) {
-                if (!strcmp(name, ctx->name))
-                        return ctx->sch;
+                if (!strcmp(name, ctx->name)) return ctx->sch;
                 ctx = ctx->next;
         } error("Unknown variable", 0, 0, TYPE_ERROR);
         exit(1);
@@ -720,12 +715,10 @@ inst(Scheme sch)
         t = safe_malloc(sizeof(Type));
         *t = *sch.type;
         while (p) {
-                Subst s;
-                s.next = NULL;
-                s.nvar = p->i;
-                s.t = tvar(++nvar);
-                p = p->next;
+                Subst s = (Subst){.next = NULL, .nvar = p->i,
+                                  .t = tvar(++nvar)};
                 t = app_subst(t, &s);
+                p = p->next;
         } return t;
 }
 
@@ -746,8 +739,7 @@ add_tfun(Type *t1, Type *t2, int length)
                 while (p->fun.right->type == TFUN && length > 1) {
                         p = p->fun.right;
                         --length;
-                }
-                p->fun.right = tfun(p->fun.right, t2);
+                } p->fun.right = tfun(p->fun.right, t2);
                 return t1;
         } else return tfun(t1, t2);
 }
@@ -1011,6 +1003,7 @@ print_token(Token t)
         case MINUS:   printf("-");                     break;
         case TIMES:   printf("*");                     break;
         case BACKS:   printf("\\");                    break;
+        case EXCLAM:  printf("!");                     break;
         case LPARENT: printf("(");                     break;
         case DIVISE:  printf("/");                     break;
         case RPARENT: printf(")");                     break;
