@@ -5,20 +5,20 @@
 #include <stdio.h>
 #include "hou.h"
 
-#define NKEYWORD 6
-#define NPUNCT   13
+#define NKEYWORD 7
+#define NPUNCT   14
 
 unsigned int linum;
 unsigned int cpos;
 unsigned int nvar = 0;
 KeywordToken keywords[NKEYWORD] = {
         {LET, "let"}, {IN, "in"}, {IF, "if"}, {ELIF, "elif"}, {ELSE, "else"},
-        {EXTERN, "extern"}
+        {EXTERN, "extern"}, {TYPE, "type"}
 };
 PuncToken punctuation[NPUNCT] = {
         {DOT, '.'}, {COL, ','}, {DIVISE, '/'}, {SEMICOL, ';'}, {PLUS, '+'},
         {TIMES, '*'}, {LPARENT, '('}, {RPARENT, ')'}, {EQUAL, '='}, {LOW, '<'},
-        {GREAT, '>'}, {BACKS, '\\'}, {EXCLAM, '!'}
+        {GREAT, '>'}, {BACKS, '\\'}, {EXCLAM, '!'}, {OR, '|'}
 };
 
 MemoryTable *mem = NULL;
@@ -541,9 +541,8 @@ ftv(Type *t)
                 break;
         case TLIT: l = NULL; break;
         case TVAR:
-                l       = safe_malloc(sizeof(struct ilist));
-                l->next = NULL;
-                l->i    = t->var;
+                l  = safe_malloc(sizeof(struct ilist));
+                *l = (struct ilist){.next = NULL, .i = t->var};
                 break;
         } return l;
 }
@@ -644,7 +643,6 @@ app_subst_sch(Scheme sch, Subst *s)
                         if (p->next) {
                                 p->nvar = p->next->nvar;
                                 p->t = p->next->t;
-                                p->nvar = p->next->nvar;
                         } else s->nvar = -1;
                         continue;
                 } p = p->next;
@@ -681,7 +679,7 @@ unify(Type *t1, Type *t2)
                 Subst *s1 = unify(t1->fun.left, t2->fun.left);
                 Subst *s2 = unify(app_subst(t1->fun.right, s1),
                                   app_subst(t2->fun.right, s1));
-                s = compose_subst(s1,s2);
+                s = compose_subst(s1, s2);
         } else error("Can't unify types", 0, 0, TYPE_ERROR);
         return s;
 }
@@ -896,8 +894,7 @@ infer_decl(Decl decl, Context *ctx)
                 while (p) {
                         ++length;
                         p = p->next;
-                }
-                p = decl.fun_decl.args;
+                } p = decl.fun_decl.args;
                 TypeReturn at = infer_args(decl.fun_decl.args, ctx);
                 if (!p) at.type = tfun(tlit("unit"), bt.type);
                 else    at.type = add_tfun(at.type, bt.type, length);
@@ -918,8 +915,8 @@ infer_body(struct elist *body, Context *ctx)
         while (body) {
                 TypeReturn inf = infer(body->expr, ctx);
                 tp.subst = compose_subst(tp.subst, inf.subst);
-                app_subst_ctx(tp.subst, ctx);
                 tp.type = inf.type;
+                app_subst_ctx(tp.subst, ctx);
                 body = body->next;
         } return tp;
 }
@@ -993,7 +990,9 @@ print_token(Token t)
         case LET:     printf("let");                   break;
         case ELSE:    printf("else");                  break;
         case ELIF:    printf("elif");                  break;
+        case TYPE:    printf("type");                  break;
         case EXTERN:  printf("extern");                break;
+        case OR:      printf("|");                     break;
         case NUM:     printf("number: %d", t.num);     break;
         case IDE:     printf("identifier: %s", t.str); break;
         case STR:     printf("string: %s", t.str);     break;
@@ -1229,12 +1228,12 @@ void
 cmp_e(char *l, char *r, char *op)
 {
 
-        ++ndecl;
-        printf("cmp %s, %s\n"
-               "mov %s, 1\n"
-               "j%s .__label%d\n"
+        char *reg = registers[alloc_reg()];
+        printf("mov %s, 1\n"
+               "cmp %s, %s\n"
                "mov %s, 0\n"
-               ".__label%d:\n", l, r, l, op, ndecl, l, ndecl);
+               "cmov%s %s, %s\n", reg, l, r, l, op, l, reg);
+        free_reg(reg);
 }
 
 char *

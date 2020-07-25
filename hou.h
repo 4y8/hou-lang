@@ -4,7 +4,7 @@
 typedef struct {
         enum { LPARENT, RPARENT, IDE, NUM, STR, EQUAL, SEMICOL, COL,
                END, ARR, LET, IN, PLUS, MINUS, TIMES, DIVISE, DOT, IF,
-               ELSE, ELIF, GREAT, LOW, EXTERN, BACKS, EXCLAM } type;
+               ELSE, ELIF, GREAT, LOW, EXTERN, BACKS, EXCLAM, OR, TYPE } type;
         union {
                 int   num;
                 char *str;
@@ -38,7 +38,7 @@ typedef struct expr {
                         struct expr *left;
                         struct expr *right;
                         enum { OP_PLUS, OP_MINUS, OP_TIMES, OP_DIVISE, OP_LOW,
-                               OP_GREAT, OP_LOWE, OP_GREATE, OP_EQUAL, OP_NEQUAL}
+                               OP_GREAT, OP_LOWE, OP_GREATE, OP_EQUAL, OP_NEQUAL }
                                 op;
                 } binop;
                 struct {
