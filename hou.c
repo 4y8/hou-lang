@@ -1367,8 +1367,7 @@ compile_expr(Expr e, SContext *ctx, char *reg)
                 if (!reg || strcmp(reg, "rax")) {
                         printf("push rax\n");
                         ++nvar;
-                }
-                memcpy(local_used, used_registers, NREG * sizeof(int));
+                } memcpy(local_used, used_registers, NREG * sizeof(int));
                 for (int i = 0; i < NREG; ++i)
                         if (local_used[i]) {
                                 printf("push %s\n", registers[i]);
@@ -1396,8 +1395,7 @@ compile_expr(Expr e, SContext *ctx, char *reg)
                 if (!reg || strcmp(reg, "rax")) {
                         printf("pop rax\n");
                         --nvar;
-                }
-                return ret_reg;
+                } return ret_reg;
         }
         case IF_CLAUSE: {
                 char *scratch_reg = compile_expr(*e.if_clause.condition, ctx, NULL);
@@ -1466,7 +1464,7 @@ compile_expr(Expr e, SContext *ctx, char *reg)
                         ++nvar;
                 } ++nvar;
                 while (p) {
-                        p->num += nvar + 1;
+                        p->num += nvar - 1;
                         p = p->next;
                 } int nsave_nvar = nvar;
                 compile_body(e.lam->fun_decl.body, ctx, "rax");
@@ -1477,7 +1475,7 @@ compile_expr(Expr e, SContext *ctx, char *reg)
                 free_reg(scratch_reg);
                 p = ctx;
                 while (p) {
-                        p->num -= nsave_nvar + 1;
+                        p->num -= nsave_nvar - 1;
                         p = p->next;
                 } nvar = save_nvar;
                 return ret_reg;
