@@ -1364,8 +1364,10 @@ compile_expr(Expr e, SContext *ctx, char *reg)
                 int length = 0;
                 /* Saves registers. */
                 int local_used[NREG];
-                ++nvar;
-                if (!reg || strcmp(reg, "rax")) printf("push rax\n");
+                if (!reg || strcmp(reg, "rax")) {
+                        printf("push rax\n");
+                        ++nvar;
+                }
                 memcpy(local_used, used_registers, NREG * sizeof(int));
                 for (int i = 0; i < NREG; ++i)
                         if (local_used[i]) {
@@ -1391,8 +1393,10 @@ compile_expr(Expr e, SContext *ctx, char *reg)
                                 --nvar;
                         }
                 printf("mov %s, rax\n", ret_reg);
-                if (!reg || strcmp(reg, "rax")) printf("pop rax\n");
-                --nvar;
+                if (!reg || strcmp(reg, "rax")) {
+                        printf("pop rax\n");
+                        --nvar;
+                }
                 return ret_reg;
         }
         case IF_CLAUSE: {
@@ -1516,11 +1520,11 @@ compile_decl(Decl decl, SContext *ctx, char *name)
                         ++length;
                         p = p->next;
                 }  ++nvar;
-                char *reg = compile_body(decl.fun_decl.body, ctx, NULL);
-                printf("mov rax, %s\n"
-                       "ret\n"
-                       "%s:\n", reg, label);
+                compile_body(decl.fun_decl.body, ctx, "rax");
+                printf("ret\n"
+                       "%s:\n", label);
                 char *temp = alloc_bss(8);
+                char *reg = registers[alloc_reg()];
                 add_bss(temp, 8);
                 printf("lea %s, [__%s%d]\n"
                        "mov [_%s], %s\n"
