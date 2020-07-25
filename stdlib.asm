@@ -4,10 +4,11 @@ extern printf
 __print_int:
 	mov rsi, [rsp + 8]
 	push rsp
+	push rdi
 	push rsi
+	push rbx
 	push rcx
 	push rdx
-	push rbx
 	push r8
 	push r9
 	push r10
@@ -24,12 +25,44 @@ __print_int:
 	pop r10
 	pop r9
 	pop r8
-	pop rbx
 	pop rdx
 	pop rcx
+	pop rbx
 	pop rsi
+	pop rdi
 	pop rsp
 	ret
+
+_custom_malloc:
+	push rsp
+	push rdi
+	push rsi
+	push rbx
+	push rcx
+	push rdx
+	push r8
+	push r9
+	push r10
+	push r11
+	mov rbx, rsp
+	and rbx, 1111b
+	sub rsp, rbx
+	mov rdi, rax 
+	xor rax, rax
+	call malloc wrt ..plt
+	add rsp, rbx
+	pop r11
+	pop r10
+	pop r9
+	pop r8
+	pop rdx
+	pop rcx
+	pop rbx
+	pop rsi
+	pop rdi
+	pop rsp
+	ret
+
 section .data
 int_to_string: db '%d', 10, 0
 _true: dq 1

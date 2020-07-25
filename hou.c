@@ -1436,24 +1436,12 @@ compile_expr(Expr e, SContext *ctx, char *reg)
                 char aft_label[64];
                 sprintf(label, "__decl%d", ++ndecl);
                 sprintf(aft_label, "__decl%d", ++ndecl);
-                printf("push rax\n"
-                       "push rsp\n");
-                for (unsigned int i = 0; i < NREG; ++i)
-                        printf("push %s\n", registers[i]);
-                printf("xor eax, eax\n"
-                       "mov rbx, rsp\n"
-                       "and rbx, 1111b\n"
-                       "sub rsp, rbx\n"
-                       "mov rdi, %d\n"
-                       "xor rax, rax\n"
-                       "call malloc wrt ..plt\n"
-                       "add rsp, rbx\n", (nvar + 2) << 3);
-                for (int i = NREG - 1; i >= 0; --i)
-                        printf("pop %s\n", registers[i]);
-                printf("pop rsp\n"
-                       "mov %s, rax\n"
+                printf("push rax\n");
+                printf("mov rax, %d\n"
+                       "call _custom_malloc\n", (nvar + 2) << 3);
+                printf("mov %s, rax\n"
+                       "pop rax\n"
                        "mov QWORD [%s], %s\n", scratch_reg, scratch_reg, label);
-                printf("pop rax\n");
                 unsigned int length = 1;
                 struct elist *ap = e.lam->fun_decl.args;
                 SContext *p = ctx;
@@ -1470,6 +1458,7 @@ compile_expr(Expr e, SContext *ctx, char *reg)
                 printf("jmp %s\n", aft_label);
                 printf("%s:\n", label);
                 unsigned int old_nvar = nvar;
+                if (!old_nvar) ++old_nvar;
                 for (unsigned int i = old_nvar - 1; i > 0; --i) {
                         printf("push QWORD [rax + %d]\n", i << 3);
                         ++nvar;

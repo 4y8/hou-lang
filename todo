@@ -1,10 +1,12 @@
-= Main
-~ Lambdas
-~ Parentheses
+MAIN
+====
+- Lambdas
+- Parentheses
 + Strings
 + ADTs
 + Pattern matching
 
-= Side
+SIDE
+====
 + Benchmarks
 + Tests
