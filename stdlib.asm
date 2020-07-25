@@ -34,4 +34,5 @@ section .data
 int_to_string: db '%d', 10, 0
 _true: dq 1
 _false: dq 0 
-_print_int: dq __print_int
+__dummy1: dq __print_int
+_print_int: dq __dummy1

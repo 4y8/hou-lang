@@ -1381,7 +1381,7 @@ compile_expr(Expr e, SContext *ctx, char *reg)
                         free_reg(arg);
                         p = p->next;
                         ++length;
-                } printf("call rax\n");
+                } printf("call [rax]\n");
                 printf("add rsp, %d\n", length << 3);
                 nvar -= length;
                 char *ret_reg = reg ? reg : registers[alloc_reg()];
@@ -1458,7 +1458,7 @@ compile_expr(Expr e, SContext *ctx, char *reg)
                 printf("%s:\n", label);
                 unsigned int old_nvar = nvar;
                 for (unsigned int i = 1; i <= old_nvar; ++i) {
-                        printf("push QWORD [rbx + %d]\n", i << 3);
+                        printf("push QWORD [rax + %d]\n", i << 3);
                         ++nvar;
                 } ++nvar;
                 while (p) {
@@ -1469,8 +1469,7 @@ compile_expr(Expr e, SContext *ctx, char *reg)
                 printf("add rsp, %d\n"
                        "ret\n", old_nvar << 3);
                 printf("%s:\n", aft_label);
-                printf("mov rbx, %s\n", scratch_reg);
-                printf("mov %s, [%s]\n", ret_reg, scratch_reg);
+                printf("mov %s, %s\n", ret_reg, scratch_reg);
                 free_reg(scratch_reg);
                 p = ctx;
                 while (p) {
@@ -1521,8 +1520,11 @@ compile_decl(Decl decl, SContext *ctx, char *name)
                 printf("mov rax, %s\n"
                        "ret\n"
                        "%s:\n", reg, label);
+                char *temp = alloc_bss(8);
+                add_bss(temp, 8);
                 printf("lea %s, [__%s%d]\n"
-                       "mov [_%s], %s\n", reg, name, n, name, reg);
+                       "mov [_%s], %s\n"
+                       "mov QWORD [_%s], QWORD _%s\n", reg, name, n, temp, reg, name, temp);
                 free_reg(reg);
                 nvar -= length;
         }

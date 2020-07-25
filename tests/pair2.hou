@@ -1,0 +1,3 @@
+Pair(a, b) -> \f -> f(a, b)
+fst(p) -> p(\a, b -> a)
+main = fst(Pair(2, 3))
