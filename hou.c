@@ -6,20 +6,25 @@
 #include "hou.h"
 
 #define NKEYWORD 7
-#define NPUNCT   14
+#define NPUNCT   15
 
 unsigned int linum;
 unsigned int cpos;
 unsigned int nvar = 0;
+
 KeywordToken keywords[NKEYWORD] = {
         {LET, "let"}, {IN, "in"}, {IF, "if"}, {ELIF, "elif"}, {ELSE, "else"},
         {EXTERN, "extern"}, {TYPE, "type"}
 };
+
 PuncToken punctuation[NPUNCT] = {
         {DOT, '.'}, {COL, ','}, {DIVISE, '/'}, {SEMICOL, ';'}, {PLUS, '+'},
         {TIMES, '*'}, {LPARENT, '('}, {RPARENT, ')'}, {EQUAL, '='}, {LOW, '<'},
-        {GREAT, '>'}, {BACKS, '\\'}, {EXCLAM, '!'}, {OR, '|'}
+        {GREAT, '>'}, {BACKS, '\\'}, {EXCLAM, '!'}, {OR, '|'}, {MOD, '%'}
 };
+
+OpTable add_op[] = {{PLUS, OP_PLUS}, {MINUS, OP_MINUS}};
+OpTable mul_op[] = {{MOD, OP_MOD}, {TIMES, OP_TIMES}, {DIVISE, OP_DIVISE}};
 
 MemoryTable *mem = NULL;
 
@@ -376,29 +381,32 @@ binop(Expr *left, Expr *right, unsigned int op)
 }
 
 Expr *
-parse_op(Expr * (*fun)(), unsigned int op0, unsigned int op1, unsigned int op2,
-         unsigned int op3)
+parse_op(Expr * (*fun)(), OpTable *ops, int nop)
 {
         Expr *e;
+        int i;
 
         e = fun();
-        for (;;) {
-                if (peek(op0)) e = binop(e, fun(), op1);
-                else if (peek(op2)) e = binop(e, fun(), op3);
-                else return e;
+        while (1) {
+                for (i = 0; i < nop; ++i)
+                        if (peek(ops[i].tok)) {
+                                e = binop(e, fun(), ops[i].op);
+                                break;
+                        }
+                if (i >= nop) return e;
         }
 }
 
 Expr *
 parse_mul()
 {
-        return parse_op(parse_fun, TIMES, OP_TIMES, DIVISE, OP_DIVISE);
+        return parse_op(parse_fun, mul_op, 3);
 }
 
 Expr *
 parse_add()
 {
-        return parse_op(parse_mul, PLUS, OP_PLUS, MINUS, OP_MINUS);
+        return parse_op(parse_mul, add_op, 2);
 }
 
 Expr *
@@ -768,6 +776,7 @@ infer(Expr expr, Context *ctx)
                 tp.subst = compose_subst(tp.subst, unify(l.type, tlit("int")));
                 tp.subst = compose_subst(tp.subst, unify(r.type, tlit("int")));
                 switch (expr.binop.op) {
+                case OP_MOD:
                 case OP_PLUS:
                 case OP_MINUS:
                 case OP_TIMES:
@@ -1001,6 +1010,7 @@ print_token(Token t)
         case DOT:     printf(".");                     break;
         case ARR:     printf("->");                    break;
         case LOW:     printf("<");                     break;
+        case MOD:     printf("%%");                    break;
         case PLUS:    printf("+");                     break;
         case GREAT:   printf(">");                     break;
         case EQUAL:   printf("=");                     break;
@@ -1237,6 +1247,31 @@ cmp_e(char *l, char *r, char *op)
         free_reg(reg);
 }
 
+void
+div_op(char *ret_reg, char *regl, char *regr)
+{
+        int reg = -1;
+        if (strcmp(regl, "rax")) {
+                printf("push rax\n");
+                ++nvar;
+        } if (!strcmp("rdx", regr)) {
+                reg = alloc_reg();
+                printf("mov %s, rdx\n", registers[reg]);
+                regr = safe_malloc(4);
+                strcpy(regr, registers[reg]);
+        } printf("push rdx\n"
+                 "mov rax, %s\n"
+                 "xor rdx, rdx\n"
+                 "div %s\n"
+                 "mov %s, %s\n"
+                 "pop rdx\n", regl, regr, regl, ret_reg);
+        if (reg != -1) used_registers[reg] = 0;
+        if (strcmp(regl, "rax")) {
+                printf("pop rax\n");
+                --nvar;
+        }
+}
+
 char *
 compile_expr(Expr e, SContext *ctx, char *reg)
 {
@@ -1299,43 +1334,17 @@ compile_expr(Expr e, SContext *ctx, char *reg)
                 char *regl = compile_expr(*e.binop.left, ctx, reg);
                 char *regr = compile_expr(*e.binop.right, ctx, NULL);
                 switch (e.binop.op) {
-                case OP_PLUS:
-                        printf("add %s, %s\n", regl, regr);
-                        break;
-                case OP_MINUS:
-                        printf("sub %s, %s\n", regl, regr);
-                        break;
-                case OP_TIMES:
-                        printf("imul %s, %s\n", regl, regr);
-                        break;
-                case OP_DIVISE:{
-                        int reg = -1;
-                        if (!reg || strcmp(regl, "rax")) {
-                                printf("push rax\n");
-                                ++nvar;
-                        } if (!strcmp("rdx", regr)) {
-                                reg = alloc_reg();
-                                printf("mov %s, rdx\n", registers[reg]);
-                                regr = safe_malloc(4);
-                                strcpy(regr, registers[reg]);
-                        } printf("push rdx\n"
-                                 "mov rax, %s\n"
-                                 "xor rdx, rdx\n"
-                                 "idiv %s\n"
-                                 "mov %s, rax\n"
-                                 "pop rdx\n", regl, regr, regl);
-                        if (reg != -1) used_registers[reg] = 0;
-                        if (!reg || strcmp(regl, "rax")) {
-                                printf("pop rax\n");
-                                --nvar;
-                        } break;
-                }
-                case OP_LOW:    cmp_e(regl, regr, "l");   break;
-                case OP_LOWE:   cmp_e(regl, regr, "le");  break;
-                case OP_EQUAL:  cmp_e(regl, regr, "e");   break;
-                case OP_GREAT:  cmp_e(regl, regr, "g");   break;
-                case OP_GREATE: cmp_e(regl, regr, "ge");  break;
-                case OP_NEQUAL: cmp_e(regl, regr, "ne");  break;
+                case OP_MOD:    div_op("rdx", regl, regr);           break;
+                case OP_PLUS:   printf("add %s, %s\n", regl, regr);  break;
+                case OP_MINUS:  printf("sub %s, %s\n", regl, regr);  break;
+                case OP_TIMES:  printf("imul %s, %s\n", regl, regr); break;
+                case OP_DIVISE: div_op("rax", regl, regr);           break;
+                case OP_LOW:    cmp_e(regl, regr, "l");              break;
+                case OP_LOWE:   cmp_e(regl, regr, "le");             break;
+                case OP_EQUAL:  cmp_e(regl, regr, "e");              break;
+                case OP_GREAT:  cmp_e(regl, regr, "g");              break;
+                case OP_GREATE: cmp_e(regl, regr, "ge");             break;
+                case OP_NEQUAL: cmp_e(regl, regr, "ne");             break;
                 } free_reg(regr);
                 return regl;
         }

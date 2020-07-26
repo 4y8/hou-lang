@@ -4,7 +4,7 @@
 typedef struct {
         enum { LPARENT, RPARENT, IDE, NUM, STR, EQUAL, SEMICOL, COL,
                END, ARR, LET, IN, PLUS, MINUS, TIMES, DIVISE, DOT, IF,
-               ELSE, ELIF, GREAT, LOW, EXTERN, BACKS, EXCLAM, OR, TYPE } type;
+               ELSE, ELIF, GREAT, LOW, EXTERN, BACKS, EXCLAM, OR, TYPE, MOD } type;
         union {
                 int   num;
                 char *str;
@@ -24,6 +24,11 @@ typedef struct {
         char c;
 } PuncToken;
 
+typedef struct op_table {
+        unsigned int tok;
+        unsigned int op;
+} OpTable;
+
 typedef struct expr {
         union {
                 struct {
@@ -38,8 +43,8 @@ typedef struct expr {
                         struct expr *left;
                         struct expr *right;
                         enum { OP_PLUS, OP_MINUS, OP_TIMES, OP_DIVISE, OP_LOW,
-                               OP_GREAT, OP_LOWE, OP_GREATE, OP_EQUAL, OP_NEQUAL }
-                                op;
+                               OP_GREAT, OP_LOWE, OP_GREATE, OP_EQUAL, OP_NEQUAL,
+                               OP_MOD} op;
                 } binop;
                 struct {
                         struct expr *condition;
@@ -154,8 +159,7 @@ Token act_token();
 int peek(unsigned int);
 
 Expr *parse_expr();
-Expr *parse_op(Expr *(*)(), unsigned int, unsigned int, unsigned int,
-               unsigned int);
+Expr *parse_op(Expr *(*)(), OpTable *, int);
 Expr *parse_add();
 Expr *parse_mul();
 Expr *parse_rel();
