@@ -1259,12 +1259,12 @@ div_op(char *ret_reg, char *regl, char *regr)
                 printf("mov %s, rdx\n", registers[reg]);
                 regr = safe_malloc(4);
                 strcpy(regr, registers[reg]);
-        } printf("push rdx\n"
-                 "mov rax, %s\n"
-                 "xor rdx, rdx\n"
-                 "div %s\n"
-                 "mov %s, %s\n"
-                 "pop rdx\n", regl, regr, regl, ret_reg);
+        } if (strcmp("rdx", regl)) printf("push rdx\n");
+        printf("mov rax, %s\n"
+               "xor rdx, rdx\n"
+               "div %s\n"
+               "mov %s, %s\n", regl, regr, regl, ret_reg);
+        if (strcmp("rdx", regl)) printf("pop rdx\n");
         if (reg != -1) used_registers[reg] = 0;
         if (strcmp(regl, "rax")) {
                 printf("pop rax\n");
