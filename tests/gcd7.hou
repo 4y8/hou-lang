@@ -1,0 +1,5 @@
+gcd(a, b) -> 
+	if (b = 0) a
+	else gcd(b, a % b).
+
+main = gcd(21, 14)

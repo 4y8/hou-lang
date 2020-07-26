@@ -1,0 +1,10 @@
+extern true bool.
+extern false bool.
+extern print_int int -> unit.
+
+max(a, b) -> if (a > b) a else b.
+min(a, b) -> if (a < b) a else b.
+
+and(a, b) -> if (a) b else a.
+or(a, b) -> if(a) a else b.
+not(a) -> if (a) false else true.

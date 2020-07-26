@@ -1,4 +1,5 @@
 extern print_int int -> unit.
+
 fib(n) -> 
 	if (n = 0) 0
 	elif (n = 1) 1

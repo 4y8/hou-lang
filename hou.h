@@ -146,6 +146,7 @@ typedef struct mem_elem {
 } MemoryTable;
 
 typedef enum { TYPE_ERROR, UNEXPECTED_CHAR, SYNTAX_ERROR } Error;
+
 int punct_to_token(char);
 int keyword_to_token(char *);
 
@@ -169,7 +170,7 @@ Elist *parse_arg(unsigned int);
 Elist *parse_body();
 Decllist *parse_program();
 
-struct ilist* ftv(Type *);
+Ilist* ftv(Type *);
 int occurs(Ilist *, int);
 Ilist *ftv_sch(Scheme);
 
