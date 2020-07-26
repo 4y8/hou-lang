@@ -1,12 +1,17 @@
-MAIN
-====
-- Lambdas
-- Parentheses
-+ Strings
-+ ADTs
-+ Pattern matching
-
-SIDE
-====
-+ Benchmarks
-+ Tests
+= MAIN 
+	= Functional
+		~ Lambdas
+		+ ADTs
+		+ Pattern matching
+		+ Type classes
+	= Imperative
+		+ Mutability
+		+ While loops
+		+ For loops
+	= Other
+		~ Parentheses
+		+ Strings
+		+ Custom operators
+= SIDE
+	+ Benchmarks
+	+ Tests

@@ -1018,8 +1018,10 @@ print_token(Token t)
         case TIMES:   printf("*");                     break;
         case BACKS:   printf("\\");                    break;
         case EXCLAM:  printf("!");                     break;
-        case LPARENT: printf("(");                     break;
         case DIVISE:  printf("/");                     break;
+        case INFIXL:  printf("infixl");                break;
+        case INFIXR:  printf("infixr");                break;
+        case LPARENT: printf("(");                     break;
         case RPARENT: printf(")");                     break;
         case SEMICOL: printf(";");                     break;
         case END:     printf("END");                   break;

@@ -8,3 +8,6 @@ min(a, b) -> if (a < b) a else b.
 and(a, b) -> if (a) b else a.
 or(a, b) -> if(a) a else b.
 not(a) -> if (a) false else true.
+
+is_even(n) -> if (n % 2 = 0) true else false.
+is_odd(n) -> if (n % 2 = 1) true else false.
