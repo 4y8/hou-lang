@@ -1453,29 +1453,28 @@ compile_expr(Expr e, SContext *ctx, char *reg)
                 for (unsigned int i = 1; i <= nvar; ++i)
                         printf("mov rdi, QWORD [rsp + %d]\n"
                                "mov QWORD [%s + %d], rdi\n",
-                               (i + 1) << 3, scratch_reg, i << 3);
+                               i << 3, scratch_reg, i << 3);
                 printf("pop rdi\n");
                 printf("jmp %s\n", aft_label);
                 printf("%s:\n", label);
                 unsigned int old_nvar = nvar;
-                if (!old_nvar) ++old_nvar;
-                for (unsigned int i = old_nvar - 1; i > 0; --i) {
+                for (unsigned int i = old_nvar; i > 0; --i) {
                         printf("push QWORD [rax + %d]\n", i << 3);
                         ++nvar;
                 } ++nvar;
                 while (p) {
-                        p->num += nvar - old_nvar + 2;
+                        p->num += nvar - old_nvar + 1;
                         p = p->next;
                 } int nsave_nvar = nvar;
                 compile_body(e.lam->fun_decl.body, ctx, "rax");
                 printf("add rsp, %d\n"
-                       "ret\n", (old_nvar - 1) << 3);
+                       "ret\n", old_nvar << 3);
                 printf("%s:\n", aft_label);
                 printf("mov %s, %s\n", ret_reg, scratch_reg);
                 free_reg(scratch_reg);
                 p = ctx;
                 while (p) {
-                        p->num -= nvar - old_nvar + 2;
+                        p->num -= nvar - old_nvar + 1;
                         p = p->next;
                 } nvar = save_nvar;
                 return ret_reg;
