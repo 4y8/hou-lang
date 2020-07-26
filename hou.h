@@ -56,34 +56,29 @@ typedef struct expr {
         int linum;
 } Expr;
 
-struct elist {
+typedef struct elist {
         struct expr expr;
         struct elist *next;
-};
+} Elist;
 
-struct slist {
-        char *str;
-        struct slist *next;
-};
-
-struct decl {
+typedef struct decl {
         union {
                 struct {
-                        struct elist *args;
-                        struct elist *body;
+                        Elist *args;
+                        Elist *body;
                 } fun_decl;
-                struct elist *var_decl;
+                Elist *var_decl;
         };
         char *name;
         enum { FUN_DECL, VAR_DECL } type;
-};
+} Decl;
 
-struct decllist {
-        struct decl decl;
+typedef struct decllist {
+        Decl decl;
         struct decllist *next;
-};
+} Decllist;
 
-struct type {
+typedef struct type {
         union {
                 char *lit;
                 unsigned int var;
@@ -93,11 +88,7 @@ struct type {
                 } fun;
         };
         enum { TLIT, TVAR, TFUN } type;
-};
-
-typedef struct type Type;
-
-typedef struct decl Decl;
+} Type;
 
 typedef struct subst {
         unsigned int nvar;
@@ -105,10 +96,10 @@ typedef struct subst {
         struct subst *next;
 } Subst;
 
-struct ilist {
+typedef struct ilist {
         unsigned int i;
         struct ilist *next;
-};
+} Ilist;
 
 typedef struct {
         struct ilist *bind;
@@ -168,17 +159,17 @@ Expr *parse_op(Expr *(*)(), unsigned int, unsigned int, unsigned int,
 Expr *parse_add();
 Expr *parse_mul();
 Expr *parse_rel();
-Decl parse_top_level();
-struct elist *parse_else();
-struct elist *parse_arg(unsigned int);
-struct elist *parse_body();
-struct decllist *parse_program();
+Decllist *parse_top_level();
+Elist *parse_else();
+Elist *parse_arg(unsigned int);
+Elist *parse_body();
+Decllist *parse_program();
 
 struct ilist* ftv(Type *);
-int occurs(struct ilist *, int);
-struct ilist *ftv_sch(Scheme);
+int occurs(Ilist *, int);
+Ilist *ftv_sch(Scheme);
 
-Context *add_ctx(Context *ctx, char *name, Scheme sch);
+Context *add_ctx(Context *, char *, Scheme);
 Scheme gen(Type *);
 
 Type *tfun(Type *, Type *);
@@ -193,26 +184,26 @@ Subst *compose_subst(Subst *, Subst *);
 Scheme find_ctx(char *, Context *);
 
 TypeReturn infer(Expr, Context *);
-TypeReturn infer_args(struct elist *, Context *);
+TypeReturn infer_args(Elist *, Context *);
 TypeReturn infer_decl(Decl, Context *);
-TypeReturn infer_body(struct elist *, Context *);
-Context *infer_decls(struct decllist *, Context *);
+TypeReturn infer_body(Elist *, Context *);
+Context *infer_decls(Decllist *, Context *);
 
 Subst *unify(Type *, Type *);
 Subst *bind(unsigned int, Type *);
 
 char *compile_expr(Expr, SContext *, char *);
-char *compile_body(struct elist *, SContext *, char *);
+char *compile_body(Elist *, SContext *, char *);
 void compile_decl(Decl, SContext *, char *);
 
 void assert(unsigned int);
 void error(char *, int, int, Error);
 
 void print_token(Token);
-void print_expr(struct expr, int);
-void print_elist(struct elist, int);
+void print_expr(Expr, int);
+void print_elist(Elist *, int);
 void print_decl(Decl, int);
-void print_decllist(struct decllist *, int);
+void print_decllist(Decllist *, int);
 void print_type(Type);
 
 #endif // __HOU_H_

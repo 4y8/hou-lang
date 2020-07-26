@@ -255,13 +255,12 @@ parse_expr()
                 *expr = (Expr){.type = INT, .num = tok.num};
                 break;
         case LET: {
-                struct decllist l;
-                struct decllist *p;
+                Decllist l;
+                Decllist *p;
                 p = &l;
                 while (!peek(IN)) {
-                        p->next = safe_malloc(sizeof(struct decllist));
-                        p->next->decl = parse_top_level();
-                        p = p->next;
+                        p->next = parse_top_level();
+                        while (p->next) p = p->next;
                 } p->next = NULL;
                 *expr = (Expr){.type = LETIN, .letin.decl = l.next,
                                .letin.expr = parse_body()};
@@ -296,17 +295,17 @@ parse_expr()
         } return expr;
 }
 
-struct elist *
+Elist *
 parse_body()
 {
-        struct elist body;
-        struct elist *p;
+        Elist body;
+        Elist *p;
         unsigned int loop;
 
         loop = 1;
         p = &body;
         for(;;) {
-                p->next = safe_malloc(sizeof(struct elist));
+                p->next = safe_malloc(sizeof(Elist));
                 p->next->expr = *parse_rel();
                 p = p->next;
                 if (act_token().type == SEMICOL) next_token();
@@ -315,17 +314,17 @@ parse_body()
         return body.next;
 }
 
-struct elist *
+Elist *
 parse_else()
 {
 
         if (peek(ELSE)) {
-                struct elist *body;
+                Elist *body;
                 body = parse_body();
                 assert(DOT);
                 return body;
         } else if (peek(ELIF)) {
-                struct elist *body = safe_malloc(sizeof(struct elist));
+                Elist *body = safe_malloc(sizeof(Elist));
                 body->next = NULL;
                 assert(LPARENT);
                 Expr *cond = parse_rel();
@@ -349,19 +348,18 @@ parse_fun()
         e = parse_expr();
         while(peek(LPARENT)) {
                 Expr *expr = malloc(sizeof(Expr));
-                struct elist args;
-                struct elist *p;
-                expr->fun_call.fun = e;
+                Elist args;
+                Elist *p;
                 p = &args;
                 while (!peek(RPARENT)) {
-                        p->next = safe_malloc(sizeof(struct elist));
+                        p->next = safe_malloc(sizeof(Elist));
                         p->next->expr = *parse_rel();
                         p = p->next;
                         if (!peek(RPARENT)) assert(COL);
                         else unused_tok = token(RPARENT);
                 } p->next = NULL;
-                expr->type = FUN_CALL;
-                expr->fun_call.args = args.next;
+                *expr = (Expr){.type = FUN_CALL, .fun_call.fun = e,
+                               .fun_call.args = args.next};
                 e = expr;
         } return e;
 }
@@ -371,21 +369,19 @@ binop(Expr *left, Expr *right, unsigned int op)
 {
         Expr *e;
 
-        e = safe_malloc(sizeof(struct expr));
+        e = safe_malloc(sizeof(Expr));
         *e = (Expr){.type = BINOP, .binop.op = op, .binop.left = left,
                     .binop.right = right};
         return e;
 }
 
 Expr *
-parse_op(Expr * (*fun)(), unsigned int op0,
-         unsigned int op1, unsigned int op2, unsigned int op3)
+parse_op(Expr * (*fun)(), unsigned int op0, unsigned int op1, unsigned int op2,
+         unsigned int op3)
 {
-        Expr *expr;
         Expr *e;
 
-        expr = fun();
-        e = expr;
+        e = fun();
         for (;;) {
                 if (peek(op0)) e = binop(e, fun(), op1);
                 else if (peek(op2)) e = binop(e, fun(), op3);
@@ -408,11 +404,9 @@ parse_add()
 Expr *
 parse_rel()
 {
-        Expr *expr;
         Expr *e;
 
-        expr = parse_add();
-        e = expr;
+        e = parse_add();
         for (;;) {
                 if (peek(GREAT))
                         e = peek(EQUAL) ?
@@ -430,6 +424,7 @@ parse_rel()
 }
 
 Context *init_ctx = NULL;
+Context *type_ctx = NULL;
 
 Type *
 parse_type()
@@ -456,17 +451,17 @@ parse_type()
         } return t;
 }
 
-struct elist *
+Elist *
 parse_arg(unsigned int sep)
 {
-        struct elist args;
-        struct elist *p;
+        Elist args;
+        Elist *p;
 
         p = &args;
         args.next = NULL;
         if (peek(sep)) return NULL;
         while (act_token().type != sep) {
-                p->next = safe_malloc(sizeof(struct elist));
+                p->next = safe_malloc(sizeof(Elist));
                 p->next->expr = *parse_expr();
                 if (p->next->expr.type != VAR)
                         error("Unexpected token.", act_token().linum,
@@ -476,18 +471,28 @@ parse_arg(unsigned int sep)
         } return args.next;
 }
 
-Decl
+Decllist *
+parse_type_decl()
+{
+        Decllist *decl;
+
+        return decl;
+}
+
+Decllist *
 parse_top_level()
 {
+        Decllist *ret;
         Decl decl;
         Token tok;
 
+        ret = safe_malloc(sizeof(Decllist));
         tok = next_token();
         if (tok.type == IDE) {
                 char *name = tok.str;
                 tok = next_token();
                 if (tok.type == LPARENT) {
-                        struct elist *args = parse_arg(RPARENT);
+                        Elist *args = parse_arg(RPARENT);
                         assert(ARR);
                         decl = (Decl){.type = FUN_DECL,
                                       .fun_decl.args = args,
@@ -501,52 +506,52 @@ parse_top_level()
         } else if (tok.type == EXTERN) {
                 tok = next_token();
                 init_ctx = add_ctx(init_ctx, tok.str, gen(parse_type()));
-                return parse_top_level();
+                return NULL;
         } else error("Unexpected token.", act_token().linum,
                      act_token().cpos, SYNTAX_ERROR);
-        return decl;
+        *ret = (Decllist){.next = NULL, .decl = decl};
+        return ret;
 }
 
-struct decllist *
+Decllist *
 parse_program()
 {
-        struct decllist *p;
-        struct decllist decls;
+        Decllist *p;
+        Decllist decls;
 
         decls.next = NULL;
         p = &decls;
         unused_tok = token(END);
         do {
-                p->next = safe_malloc(sizeof(struct decllist));
-                p->next->decl = parse_top_level();
-                p = p->next;
+                p->next = parse_top_level();
+                while (p -> next) p = p->next;
         } while (!peek(END));
         p->next = NULL;
         return decls.next;
 }
 
-struct ilist*
+Ilist*
 ftv(Type *t)
 {
-        struct ilist *l;
+        Ilist *l;
 
         switch (t->type) {
         case TFUN:
                 l = ftv(t->fun.left);
-                struct ilist *p = l;
+                Ilist *p = l;
                 while (p) p=p->next;
                 p = ftv(t->fun.right);
                 break;
         case TLIT: l = NULL; break;
         case TVAR:
-                l  = safe_malloc(sizeof(struct ilist));
-                *l = (struct ilist){.next = NULL, .i = t->var};
+                l  = safe_malloc(sizeof(Ilist));
+                *l = (Ilist){.next = NULL, .i = t->var};
                 break;
         } return l;
 }
 
 int
-occurs(struct ilist *l, int i)
+occurs(Ilist *l, int i)
 {
 
         while(l) {
@@ -555,11 +560,11 @@ occurs(struct ilist *l, int i)
         } return 0;
 }
 
-struct ilist *
+Ilist *
 ftv_sch(Scheme sch)
 {
-        struct ilist *l;
-        struct ilist *p;
+        Ilist *l;
+        Ilist *p;
 
         p = sch.bind;
         while (p) {
@@ -707,7 +712,7 @@ Type *
 inst(Scheme sch)
 {
         Type *t;
-        struct ilist *p;
+        Ilist *p;
 
         p = sch.bind;
         t = safe_malloc(sizeof(Type));
@@ -781,7 +786,7 @@ infer(Expr expr, Context *ctx)
                 app_subst_ctx(ft.subst, ctx);
                 /* Get number of arguments */
                 int length = 0;
-                struct elist *p = expr.fun_call.args;
+                Elist *p = expr.fun_call.args;
                 while (p) {
                         ++length;
                         p = p->next;
@@ -830,7 +835,7 @@ infer(Expr expr, Context *ctx)
 }
 
 TypeReturn
-infer_args(struct elist *args, Context *ctx)
+infer_args(Elist *args, Context *ctx)
 {
         TypeReturn tp;
 
@@ -847,7 +852,7 @@ infer_args(struct elist *args, Context *ctx)
 }
 
 Scheme
-scheme(struct ilist *bind, Type *type)
+scheme(Ilist *bind, Type *type)
 {
 
         return (Scheme){.bind = bind, .type = type};
@@ -877,7 +882,7 @@ infer_decl(Decl decl, Context *ctx)
                 tp = infer_body(decl.var_decl, ctx);
                 break;
         case FUN_DECL: {
-                struct elist *p = decl.fun_decl.args;
+                Elist *p = decl.fun_decl.args;
                 Type *decl_type = tvar(++nvar);
                 ctx = add_ctx(ctx, decl.name, scheme(NULL, decl_type));
                 while (p) {
@@ -905,7 +910,7 @@ infer_decl(Decl decl, Context *ctx)
 }
 
 TypeReturn
-infer_body(struct elist *body, Context *ctx)
+infer_body(Elist *body, Context *ctx)
 {
         TypeReturn tp;
 
@@ -920,7 +925,7 @@ infer_body(struct elist *body, Context *ctx)
 }
 
 Context *
-infer_decls(struct decllist *decls, Context *ctx)
+infer_decls(Decllist *decls, Context *ctx)
 {
 
         while (decls) {
@@ -939,19 +944,17 @@ print_tab(int tab)
 }
 
 void
-print_elist(struct elist elist, int tab)
+print_elist(Elist *elist, int tab)
 {
-        struct elist *p;
 
-        p = &elist;
-        while (p) {
-                print_expr(p->expr, tab);
-                p = p->next;
+        while (elist) {
+                print_expr(elist->expr, tab);
+                elist = elist->next;
         }
 }
 
 void
-print_decllist(struct decllist *decllist, int tab)
+print_decllist(Decllist *decllist, int tab)
 {
 
         while (decllist) {
@@ -1027,7 +1030,7 @@ print_expr(struct expr expr, int tab)
                 print_expr(*expr.fun_call.fun, tab + 2);
                 print_tab(tab);
                 printf("args:\n");
-                print_elist(*expr.fun_call.args, tab + 2);
+                print_elist(expr.fun_call.args, tab + 2);
                 break;
         case VAR:
                 printf("variable: %s\n", expr.var);
@@ -1037,7 +1040,7 @@ print_expr(struct expr expr, int tab)
                 print_decllist(expr.letin.decl, tab + 2);
                 print_tab(tab);
                 printf("in\n");
-                print_elist(*expr.letin.expr, tab + 2);
+                print_elist(expr.letin.expr, tab + 2);
                 break;
         case BINOP:
                 printf("binop: %s\n", op_to_char(expr.binop.op));
@@ -1049,11 +1052,11 @@ print_expr(struct expr expr, int tab)
                 print_expr(*expr.if_clause.condition, tab + 2);
                 print_tab(tab);
                 printf("then: \n");
-                print_elist(*expr.if_clause.if_expr, tab + 2);
+                print_elist(expr.if_clause.if_expr, tab + 2);
                 if (expr.if_clause.else_expr) {
                         print_tab(tab);
                         printf("else: \n");
-                        print_elist(*expr.if_clause.else_expr, tab + 2);
+                        print_elist(expr.if_clause.else_expr, tab + 2);
                 }
         case LAM:
                 printf("lambda:\n");
@@ -1070,12 +1073,12 @@ print_decl(struct decl decl, int tab)
         switch (decl.type) {
         case FUN_DECL:
                 printf("function: %s\n", decl.name);
-                print_elist(*decl.fun_decl.args, tab + 2);
-                print_elist(*decl.fun_decl.body, tab + 2);
+                print_elist(decl.fun_decl.args, tab + 2);
+                print_elist(decl.fun_decl.body, tab + 2);
                 break;
         case VAR_DECL:
                 printf("variable: %s\n", decl.name);
-                print_elist(*decl.var_decl, tab + 2);
+                print_elist(decl.var_decl, tab + 2);
                 break;
         }
 }
@@ -1348,7 +1351,7 @@ compile_expr(Expr e, SContext *ctx, char *reg)
                 return ret_reg;
         }
         case LETIN: {
-                struct decllist *p = e.letin.decl;
+                Decllist *p = e.letin.decl;
                 FreeBSSTable *f_table = NULL;
                 int length = 0;
                 while (p) {
@@ -1385,7 +1388,7 @@ compile_expr(Expr e, SContext *ctx, char *reg)
                                 ++nvar;
                         }
                 compile_expr(*e.fun_call.fun, ctx, "rax");
-                struct elist *p = e.fun_call.args;
+                Elist *p = e.fun_call.args;
                 while (p) {
                         char *arg = compile_expr(p->expr, ctx, NULL);
                         printf("push %s\n", arg);
@@ -1428,7 +1431,6 @@ compile_expr(Expr e, SContext *ctx, char *reg)
                 return ret_reg;
         }
         case LAM: {
-                /* FIXME */
                 unsigned int save_nvar = nvar;
                 char *ret_reg = reg ? reg : registers[alloc_reg()];
                 char *scratch_reg = registers[alloc_reg()];
@@ -1443,7 +1445,7 @@ compile_expr(Expr e, SContext *ctx, char *reg)
                        "pop rax\n"
                        "mov QWORD [%s], %s\n", scratch_reg, scratch_reg, label);
                 unsigned int length = 1;
-                struct elist *ap = e.lam->fun_decl.args;
+                Elist *ap = e.lam->fun_decl.args;
                 SContext *p = ctx;
                 while (ap) {
                         ctx = add_sctx(ctx, ap->expr.var, ++nvar);
@@ -1458,15 +1460,14 @@ compile_expr(Expr e, SContext *ctx, char *reg)
                 printf("jmp %s\n", aft_label);
                 printf("%s:\n", label);
                 unsigned int old_nvar = nvar;
-                for (unsigned int i = old_nvar; i > 0; --i) {
+                for (unsigned int i = nvar; i > 0; --i) {
                         printf("push QWORD [rax + %d]\n", i << 3);
                         ++nvar;
                 } ++nvar;
                 while (p) {
                         p->num += nvar - old_nvar + 1;
                         p = p->next;
-                } int nsave_nvar = nvar;
-                compile_body(e.lam->fun_decl.body, ctx, "rax");
+                } compile_body(e.lam->fun_decl.body, ctx, "rax");
                 printf("add rsp, %d\n"
                        "ret\n", old_nvar << 3);
                 printf("%s:\n", aft_label);
@@ -1484,7 +1485,7 @@ compile_expr(Expr e, SContext *ctx, char *reg)
 }
 
 char *
-compile_body(struct elist *body, SContext *ctx, char *reg)
+compile_body(Elist *body, SContext *ctx, char *reg)
 {
         char *s;
 
@@ -1508,7 +1509,7 @@ compile_decl(Decl decl, SContext *ctx, char *name)
                 char label[64];
                 int length = 1;
                 int n = ++ndecl;
-                struct elist *p = decl.fun_decl.args;
+                Elist *p = decl.fun_decl.args;
                 sprintf(label, "__decl%d", ++ndecl);
                 printf("jmp %s\n"
                        "__%s%d:\n", label, name, n);
@@ -1544,7 +1545,7 @@ compile_bss()
 }
 
 void
-compile_decls(struct decllist *decls)
+compile_decls(Decllist *decls)
 {
 
         while (decls) {
@@ -1571,7 +1572,7 @@ char *epilog =
 void
 program(char *prog)
 {
-        struct decllist *decl;
+        Decllist *decl;
 
         s = prog;
         linum = 1;
