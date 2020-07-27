@@ -510,19 +510,19 @@ parse_type_decl()
 
         name = extract_type_name();
         d.name = name;
-        d.args = peek(RPARENT) ? parse_arg(RPARENT) : NULL;
+        d.args = peek(LPARENT) ? parse_arg(RPARENT) : NULL;
         return d;
 }
 
 EList *
 append(EList *l1, EList *l2)
 {
-
         EList *p;
+
         if (!l1) return l2;
         if (!l2) return l1;
         p = l1;
-        while ((p = p->next));
+        while (p->next) p = p->next;
         p->next = l2;
         return l1;
 }
@@ -542,6 +542,16 @@ make_dummy_vars(int length)
         } return l;
 }
 
+Expr *
+make_underscore()
+{
+        Expr *e;
+
+        e  = safe_malloc(sizeof(Expr));
+        *e = (Expr){.type = VAR, .var = "_"};
+        return e;
+}
+
 EList *
 make_underscore_app(EList *arg)
 {
@@ -549,8 +559,19 @@ make_underscore_app(EList *arg)
 
         e       = safe_malloc(sizeof(EList));
         e->expr = (Expr){.type = FUN_CALL,
-                         .fun_call.fun = safe_malloc(sizeof(EList)),
+                         .fun_call.fun = make_underscore(),
                          .fun_call.args = arg};
+        e->next = NULL;
+        return e;
+}
+
+EList *
+make_underscore_l()
+{
+        EList *e;
+
+        e  = safe_malloc(sizeof(EList));
+        *e = (EList){.expr = *make_underscore(), .next = NULL};
         return e;
 }
 
@@ -561,6 +582,7 @@ type_decls_to_decls(TDeclList *l, int length)
         DeclList *dl;
         DeclList *p;
 
+        i = 1;
         p = dl = safe_malloc(sizeof(DeclList));
         while (i != length){
                 p->decl =
@@ -572,14 +594,16 @@ type_decls_to_decls(TDeclList *l, int length)
                 p->decl.fun_decl.body->expr =
                         (Expr){.type = LAM, .lam = safe_malloc(sizeof(Decl))};
                 EList *args = append(append(make_dummy_vars(i - 1),
-                                            make_underscore_app(l->t.args)),
+                                            make_underscore_l()),
                                      make_dummy_vars(length - i));
                 *p->decl.fun_decl.body->expr.lam =
-                        (Decl){.type = FUN_DECL, .fun_decl.args = args};
+                        (Decl){.type = FUN_DECL, .fun_decl.args = args,
+                               .fun_decl.body = make_underscore_app(l->t.args)};
                 p->next = safe_malloc(sizeof(DeclList));
                 p       = p->next;
                 l       = l->next;
-        }
+                ++i;
+        } p->next = NULL;
         return dl;
 }
 
@@ -614,6 +638,15 @@ parse_top_level()
         } else if (tok.type == TYPE) {
                 add_type(extract_type_name());
                 assert(EQUAL);
+                TDeclList t;
+                TDeclList *p = &t;
+                do {
+                        p->next = safe_malloc(sizeof(TDeclList));
+                        p->next->t = parse_type_decl();
+                        p = p->next;
+                } while (peek(OR));
+                p->next = NULL;
+                return type_decls_to_decls(t.next, 2);
         } else error("Unexpected token.", act_token().linum,
                      act_token().cpos, SYNTAX_ERROR);
         *ret = (DeclList){.next = NULL, .decl = decl};
