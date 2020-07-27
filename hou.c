@@ -612,8 +612,6 @@ type_decls_to_decls(TDeclList *l, int length)
                                .fun_decl.body = make_underscore_app(l->t.args)};
                 l = l->next;
                 ++i;
-                print_type(*infer_decl(p->decl, NULL).type);
-                print_decl(p->decl, 0);
         } p->next = NULL;
         return dl.next;
 }
@@ -894,8 +892,7 @@ add_tfun(Type *t1, Type *t2, int length)
                 while (p->fun.right->type == TFUN && length > 1) {
                         p = p->fun.right;
                         --length;
-                } p->fun.right = tfun(p->fun.right, t2);
-                return t1;
+                } return tfun(t1, t2);
         } else return tfun(t1, t2);
 }
 
@@ -943,8 +940,7 @@ infer(Expr expr, Context *ctx)
                 while (p) {
                         ++length;
                         p = p->next;
-                }
-                TypeReturn at = infer_args(expr.fun_call.args, ctx);
+                } TypeReturn at = infer_args(expr.fun_call.args, ctx);
                 Type *s_type = tvar(++nvar);
                 if (!expr.fun_call.args) at.type = tfun(tlit("Unit"), s_type);
                 else at.type = add_tfun(at.type, s_type, length);

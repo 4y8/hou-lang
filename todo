@@ -1,9 +1,9 @@
 = MAIN 
 	= Functional
 		~ Lambdas
-		+ ADTs
+		~ ADTs
 		+ Pattern matching
-		+ Type classes
+		+ Type classes (Eq, Print)
 	= Imperative
 		+ Mutability
 		+ While loops
