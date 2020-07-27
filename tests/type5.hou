@@ -1,0 +1,1 @@
+type Peano = Z | S(Peano)

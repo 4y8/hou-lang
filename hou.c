@@ -544,6 +544,7 @@ ftv(Type *t)
         Ilist *l;
 
         switch (t->type) {
+        case TPAR: /* Fallthrough */
         case TFUN:
                 l = ftv(t->fun.left);
                 Ilist *p = l;
@@ -763,7 +764,7 @@ infer(Expr expr, Context *ctx)
         tp.subst = NULL;
         switch (expr.type) {
         case INT:
-                tp.type = tlit("int");
+                tp.type = tlit("Int");
                 break;
         case VAR:
                 tp.type = inst(find_ctx(expr.var, ctx));
@@ -773,20 +774,20 @@ infer(Expr expr, Context *ctx)
                 app_subst_ctx(r.subst, ctx);
                 TypeReturn l = infer(*expr.binop.left, ctx);
                 tp.subst = compose_subst(r.subst, l.subst);
-                tp.subst = compose_subst(tp.subst, unify(l.type, tlit("int")));
-                tp.subst = compose_subst(tp.subst, unify(r.type, tlit("int")));
+                tp.subst = compose_subst(tp.subst, unify(l.type, tlit("Int")));
+                tp.subst = compose_subst(tp.subst, unify(r.type, tlit("Int")));
                 switch (expr.binop.op) {
                 case OP_MOD:
                 case OP_PLUS:
                 case OP_MINUS:
                 case OP_TIMES:
-                case OP_DIVISE: tp.type = tlit("int"); break;
+                case OP_DIVISE: tp.type = tlit("Int"); break;
                 case OP_GREATE:
                 case OP_LOWE:
                 case OP_EQUAL:
                 case OP_GREAT:
                 case OP_NEQUAL:
-                case OP_LOW: tp.type = tlit("bool"); break;
+                case OP_LOW: tp.type = tlit("Bool"); break;
                 }
                 break;
         }
@@ -802,7 +803,7 @@ infer(Expr expr, Context *ctx)
                 }
                 TypeReturn at = infer_args(expr.fun_call.args, ctx);
                 Type *s_type = tvar(++nvar);
-                if (!expr.fun_call.args) at.type = tfun(tlit("unit"), s_type);
+                if (!expr.fun_call.args) at.type = tfun(tlit("Unit"), s_type);
                 else at.type = add_tfun(at.type, s_type, length);
                 tp.subst = unify(at.type, ft.type);
                 tp.subst = compose_subst(ft.subst, tp.subst);
@@ -816,7 +817,7 @@ infer(Expr expr, Context *ctx)
         }
         case IF_CLAUSE: {
                 TypeReturn tcond = infer(*expr.if_clause.condition, ctx);
-                tp.subst = unify(tcond.type, tlit("bool"));
+                tp.subst = unify(tcond.type, tlit("Bool"));
                 tp.subst = compose_subst(tp.subst, tcond.subst);
                 app_subst_ctx(tp.subst, ctx);
                 TypeReturn tif = infer_body(expr.if_clause.if_expr, ctx);
@@ -831,8 +832,8 @@ infer(Expr expr, Context *ctx)
                         tp.type = app_subst(telse.type, tp.subst);
                 } else {
                         tp.subst = compose_subst(tp.subst,
-                                                 unify(tif.type, tlit("unit")));
-                        tp.type = tlit("unit");
+                                                 unify(tif.type, tlit("Unit")));
+                        tp.type = tlit("Unit");
                 }
                 break;
         }
@@ -908,7 +909,7 @@ infer_decl(Decl decl, Context *ctx)
                         p = p->next;
                 } p = decl.fun_decl.args;
                 TypeReturn at = infer_args(decl.fun_decl.args, ctx);
-                if (!p) at.type = tfun(tlit("unit"), bt.type);
+                if (!p) at.type = tfun(tlit("Unit"), bt.type);
                 else    at.type = add_tfun(at.type, bt.type, length);
                 tp.subst = compose_subst(unify(decl_type, at.type), tp.subst);
                 tp.type = app_subst(at.type, tp.subst);
@@ -1112,6 +1113,11 @@ print_type(Type t)
                 break;
         case TVAR:
                 printf("%d", t.var);
+                break;
+        case TPAR:
+                print_type(*t.fun.left);
+                printf(" ");
+                print_type(*t.fun.right);
                 break;
         }
 }

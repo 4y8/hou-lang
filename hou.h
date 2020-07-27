@@ -93,7 +93,7 @@ typedef struct type {
                         struct type *right;
                 } fun;
         };
-        enum { TLIT, TVAR, TFUN } type;
+        enum { TLIT, TVAR, TFUN, TPAR } type;
 } Type;
 
 typedef struct subst {

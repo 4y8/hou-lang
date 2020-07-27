@@ -1,7 +1,7 @@
 #!/bin/sh
 
 test() {
-    ./a.out "$(cat "$1")" > out.asm &&
+    ./a.out "$(cat ../stdlib.hou "$1")" > out.asm &&
 	cat out.asm ../stdlib.asm > o.asm &&
         nasm -felf64 o.asm -o out.o &&
         musl-gcc out.o -static -o out

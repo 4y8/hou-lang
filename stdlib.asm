@@ -65,7 +65,7 @@ _custom_malloc:
 
 section .data
 int_to_string: db '%d', 10, 0
-_true: dq 1
-_false: dq 0 
+_True: dq 1
+_False: dq 0 
 __dummy1: dq __print_int
 _print_int: dq __dummy1
