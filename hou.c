@@ -530,16 +530,17 @@ append(EList *l1, EList *l2)
 EList *
 make_dummy_vars(int length)
 {
-        EList *l;
+        EList l;
         EList *p;
 
-        l = p = safe_malloc(sizeof(EList));
+        p = &l;
         while (length) {
-                p->expr = (Expr){.type = VAR, .var = ""};
                 p->next = safe_malloc(sizeof(EList));
+                p->next->expr = (Expr){.type = VAR, .var = ""};
                 p = p->next;
                 --length;
-        } return l;
+        } p->next = NULL;
+        return l.next;
 }
 
 Expr *
@@ -557,10 +558,12 @@ make_underscore_app(EList *arg)
 {
         EList *e;
 
-        e       = safe_malloc(sizeof(EList));
-        e->expr = (Expr){.type = FUN_CALL,
-                         .fun_call.fun = make_underscore(),
-                         .fun_call.args = arg};
+        e = safe_malloc(sizeof(EList));
+        if (arg)
+                e->expr = (Expr){.type = FUN_CALL,
+                                 .fun_call.fun = make_underscore(),
+                                 .fun_call.args = arg};
+        else e->expr = *make_underscore();
         e->next = NULL;
         return e;
 }
@@ -579,32 +582,40 @@ DeclList *
 type_decls_to_decls(TDeclList *l, int length)
 {
         int i;
-        DeclList *dl;
+        DeclList dl;
         DeclList *p;
 
         i = 1;
-        p = dl = safe_malloc(sizeof(DeclList));
-        while (i != length){
-                p->decl =
-                        (Decl){.type = FUN_DECL,
-                               .fun_decl.args = l->t.args,
-                               .name = l->t.name,
-                               .fun_decl.body = safe_malloc(sizeof(EList))};
-                p->decl.fun_decl.body->next = NULL;
-                p->decl.fun_decl.body->expr =
+        p = &dl;
+        while (i <= length){
+                p->next = safe_malloc(sizeof(DeclList));
+                p = p->next;
+                if (l->t.args)
+                        p->decl =
+                                (Decl){.type = FUN_DECL,
+                                       .fun_decl.args = l->t.args,
+                                       .name = l->t.name,
+                                       .fun_decl.body = safe_malloc(sizeof(EList))};
+                else p->decl =
+                             (Decl){.type = VAR_DECL,
+                                    .name = l->t.name,
+                                    .var_decl = safe_malloc(sizeof(EList))};
+                EList *bp = l->t.args ? p->decl.fun_decl.body : p->decl.var_decl;
+                bp->next = NULL;
+                bp->expr =
                         (Expr){.type = LAM, .lam = safe_malloc(sizeof(Decl))};
                 EList *args = append(append(make_dummy_vars(i - 1),
                                             make_underscore_l()),
                                      make_dummy_vars(length - i));
-                *p->decl.fun_decl.body->expr.lam =
-                        (Decl){.type = FUN_DECL, .fun_decl.args = args,
+                *bp->expr.lam =
+                        (Decl){.type = FUN_DECL, .fun_decl.args = args, .name = "",
                                .fun_decl.body = make_underscore_app(l->t.args)};
-                p->next = safe_malloc(sizeof(DeclList));
-                p       = p->next;
-                l       = l->next;
+                l = l->next;
                 ++i;
+                print_type(*infer_decl(p->decl, NULL).type);
+                print_decl(p->decl, 0);
         } p->next = NULL;
-        return dl;
+        return dl.next;
 }
 
 DeclList *
@@ -1219,6 +1230,8 @@ print_decl(struct decl decl, int tab)
         case FUN_DECL:
                 printf("function: %s\n", decl.name);
                 print_elist(decl.fun_decl.args, tab + 2);
+                print_tab(tab);
+                printf("body:\n");
                 print_elist(decl.fun_decl.body, tab + 2);
                 break;
         case VAR_DECL:
