@@ -510,16 +510,48 @@ parse_type_decl()
 
         name = extract_type_name();
         d.name = name;
-        if (peek(LPARENT)) {
-
-        } else d.args = NULL;
+        d.args = peek(RPARENT) ? parse_arg(RPARENT) : NULL;
         return d;
 }
 
-DeclList
-type_decls_to_decls(TDeclList *l)
+EList *
+append(EList *l1, EList *l2)
 {
 
+        EList *p;
+        if (!l1) return l2;
+        if (!l2) return l1;
+        p = l1;
+        while ((p = p->next));
+        p->next = l2;
+        return l1;
+}
+
+EList *
+make_dummy_vars(int length)
+{
+        EList *l;
+        EList *p;
+
+        l = p = safe_malloc(sizeof(EList));
+        while (length) {
+                p->expr = (Expr){.type = VAR, .var = ""};
+                p->next = safe_malloc(sizeof(EList));
+                p = p->next;
+                --length;
+        } return l;
+}
+
+DeclList *
+type_decls_to_decls(TDeclList *l, int length)
+{
+        int i;
+        DeclList *dl;
+
+        while (i != length){
+
+        }
+        return dl;
 }
 
 DeclList *
@@ -586,7 +618,7 @@ ftv(Type *t)
         case TFUN:
                 l = ftv(t->fun.left);
                 Ilist *p = l;
-                while (p) p=p->next;
+                while (p) p = p->next;
                 p = ftv(t->fun.right);
                 break;
         case TLIT: l = NULL; break;
