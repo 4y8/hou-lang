@@ -89,9 +89,9 @@ typedef struct typedecl {
         EList *args;
 } TypeDecl;
 
-typedef struct typedecllist {
-        char *s;
-        struct slist *next;
+typedef struct tdecllist {
+        TypeDecl t;
+        struct tdecllist *next;
 } TDeclList;
 
 typedef struct type {
@@ -149,12 +149,6 @@ typedef struct bss_elem {
         int size;
         struct bss_elem *next;
 } BSSTable;
-
-typedef struct free_bss_elem {
-        char *name;
-        int size;
-        struct free_bss_elem *next;
-} FreeBSSTable;
 
 typedef struct mem_elem {
         void *p;

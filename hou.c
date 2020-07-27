@@ -542,14 +542,43 @@ make_dummy_vars(int length)
         } return l;
 }
 
+EList *
+make_underscore_app(EList *arg)
+{
+        EList *e;
+
+        e       = safe_malloc(sizeof(EList));
+        e->expr = (Expr){.type = FUN_CALL,
+                         .fun_call.fun = safe_malloc(sizeof(EList)),
+                         .fun_call.args = arg};
+        return e;
+}
+
 DeclList *
 type_decls_to_decls(TDeclList *l, int length)
 {
         int i;
         DeclList *dl;
+        DeclList *p;
 
+        p = dl = safe_malloc(sizeof(DeclList));
         while (i != length){
-
+                p->decl =
+                        (Decl){.type = FUN_DECL,
+                               .fun_decl.args = l->t.args,
+                               .name = l->t.name,
+                               .fun_decl.body = safe_malloc(sizeof(EList))};
+                p->decl.fun_decl.body->next = NULL;
+                p->decl.fun_decl.body->expr =
+                        (Expr){.type = LAM, .lam = safe_malloc(sizeof(Decl))};
+                EList *args = append(append(make_dummy_vars(i - 1),
+                                            make_underscore_app(l->t.args)),
+                                     make_dummy_vars(length - i));
+                *p->decl.fun_decl.body->expr.lam =
+                        (Decl){.type = FUN_DECL, .fun_decl.args = args};
+                p->next = safe_malloc(sizeof(DeclList));
+                p       = p->next;
+                l       = l->next;
         }
         return dl;
 }
@@ -1218,7 +1247,7 @@ char *registers[NREG] = {
 
 BSSTable *bss_table;
 BSSTable *bss_table;
-FreeBSSTable *free_bss_table;
+BSSTable *free_bss_table;
 int ndecl = -1;
 
 void
@@ -1243,11 +1272,11 @@ add_bss(char *name, int size)
 void
 free_bss(char *name, int size)
 {
-        FreeBSSTable *nf_table;
+        BSSTable *nf_table;
 
-        nf_table = safe_malloc(sizeof(FreeBSSTable));
-        *nf_table = (FreeBSSTable){.size = size, .name = name,
-                                   .next = free_bss_table};
+        nf_table = safe_malloc(sizeof(BSSTable));
+        *nf_table = (BSSTable){.size = size, .name = name,
+                               .next = free_bss_table};
         free_bss_table = nf_table;
 }
 
@@ -1439,14 +1468,14 @@ compile_expr(Expr e, SContext *ctx, char *reg)
         }
         case LETIN: {
                 DeclList *p = e.letin.decl;
-                FreeBSSTable *f_table = NULL;
+                BSSTable *f_table = NULL;
                 int length = 0;
                 while (p) {
                         char *s = alloc_bss(8);
-                        FreeBSSTable *nf_table =
-                                safe_malloc(sizeof(FreeBSSTable));
-                        *nf_table = (FreeBSSTable){.name = s, .size = 8,
-                                                   .next = f_table};
+                        BSSTable *nf_table =
+                                safe_malloc(sizeof(BSSTable));
+                        *nf_table = (BSSTable){.name = s, .size = 8,
+                                               .next = f_table};
                         f_table = nf_table;
                         compile_decl(p->decl, ctx, s);
                         ctx = add_sctx(ctx, p->decl.name, ++nvar);
