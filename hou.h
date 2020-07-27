@@ -65,15 +65,15 @@ typedef struct expr {
 typedef struct elist {
         struct expr expr;
         struct elist *next;
-} Elist;
+} EList;
 
 typedef struct decl {
         union {
                 struct {
-                        Elist *args;
-                        Elist *body;
+                        EList *args;
+                        EList *body;
                 } fun_decl;
-                Elist *var_decl;
+                EList *var_decl;
         };
         char *name;
         enum { FUN_DECL, VAR_DECL } type;
@@ -82,7 +82,17 @@ typedef struct decl {
 typedef struct decllist {
         Decl decl;
         struct decllist *next;
-} Decllist;
+} DeclList;
+
+typedef struct typedecl {
+        char *name;
+        EList *args;
+} TypeDecl;
+
+typedef struct typedecllist {
+        char *s;
+        struct slist *next;
+} TDeclList;
 
 typedef struct type {
         union {
@@ -95,6 +105,11 @@ typedef struct type {
         };
         enum { TLIT, TVAR, TFUN, TPAR } type;
 } Type;
+
+typedef struct slist {
+        char *s;
+        struct slist *next;
+} SList;
 
 typedef struct subst {
         unsigned int nvar;
@@ -165,11 +180,11 @@ Expr *parse_op(Expr *(*)(), OpTable *, int);
 Expr *parse_add();
 Expr *parse_mul();
 Expr *parse_rel();
-Decllist *parse_top_level();
-Elist *parse_else();
-Elist *parse_arg(unsigned int);
-Elist *parse_body();
-Decllist *parse_program();
+DeclList *parse_top_level();
+EList *parse_else();
+EList *parse_arg(unsigned int);
+EList *parse_body();
+DeclList *parse_program();
 
 Ilist* ftv(Type *);
 int occurs(Ilist *, int);
@@ -190,16 +205,16 @@ Subst *compose_subst(Subst *, Subst *);
 Scheme find_ctx(char *, Context *);
 
 TypeReturn infer(Expr, Context *);
-TypeReturn infer_args(Elist *, Context *);
+TypeReturn infer_args(EList *, Context *);
 TypeReturn infer_decl(Decl, Context *);
-TypeReturn infer_body(Elist *, Context *);
-Context *infer_decls(Decllist *, Context *);
+TypeReturn infer_body(EList *, Context *);
+Context *infer_decls(DeclList *, Context *);
 
 Subst *unify(Type *, Type *);
 Subst *bind(unsigned int, Type *);
 
 char *compile_expr(Expr, SContext *, char *);
-char *compile_body(Elist *, SContext *, char *);
+char *compile_body(EList *, SContext *, char *);
 void compile_decl(Decl, SContext *, char *);
 
 void assert(unsigned int);
@@ -207,9 +222,9 @@ void error(char *, int, int, Error);
 
 void print_token(Token);
 void print_expr(Expr, int);
-void print_elist(Elist *, int);
+void print_elist(EList *, int);
 void print_decl(Decl, int);
-void print_decllist(Decllist *, int);
+void print_decllist(DeclList *, int);
 void print_type(Type);
 
 #endif // __HOU_H_

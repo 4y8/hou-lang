@@ -260,8 +260,8 @@ parse_expr()
                 *expr = (Expr){.type = INT, .num = tok.num};
                 break;
         case LET: {
-                Decllist l;
-                Decllist *p;
+                DeclList l;
+                DeclList *p;
                 p = &l;
                 while (!peek(IN)) {
                         p->next = parse_top_level();
@@ -300,17 +300,17 @@ parse_expr()
         } return expr;
 }
 
-Elist *
+EList *
 parse_body()
 {
-        Elist body;
-        Elist *p;
+        EList body;
+        EList *p;
         unsigned int loop;
 
         loop = 1;
         p = &body;
         for(;;) {
-                p->next = safe_malloc(sizeof(Elist));
+                p->next = safe_malloc(sizeof(EList));
                 p->next->expr = *parse_rel();
                 p = p->next;
                 if (act_token().type == SEMICOL) next_token();
@@ -319,17 +319,17 @@ parse_body()
         return body.next;
 }
 
-Elist *
+EList *
 parse_else()
 {
 
         if (peek(ELSE)) {
-                Elist *body;
+                EList *body;
                 body = parse_body();
                 assert(DOT);
                 return body;
         } else if (peek(ELIF)) {
-                Elist *body = safe_malloc(sizeof(Elist));
+                EList *body = safe_malloc(sizeof(EList));
                 body->next = NULL;
                 assert(LPARENT);
                 Expr *cond = parse_rel();
@@ -353,11 +353,11 @@ parse_fun()
         e = parse_expr();
         while(peek(LPARENT)) {
                 Expr *expr = malloc(sizeof(Expr));
-                Elist args;
-                Elist *p;
+                EList args;
+                EList *p;
                 p = &args;
                 while (!peek(RPARENT)) {
-                        p->next = safe_malloc(sizeof(Elist));
+                        p->next = safe_malloc(sizeof(EList));
                         p->next->expr = *parse_rel();
                         p = p->next;
                         if (!peek(RPARENT)) assert(COL);
@@ -435,13 +435,13 @@ Context *init_ctx = NULL;
 Context *type_ctx = NULL;
 
 Type *
-parse_type()
+parse_type(unsigned int sep)
 {
         Token tok;
         Type *t;
 
         t = NULL;
-        while (!peek(DOT)) {
+        while (!peek(sep)) {
                 tok = next_token();
                 switch(tok.type) {
                 case IDE:
@@ -451,7 +451,7 @@ parse_type()
                         t = tvar(tok.num);
                         break;
                 case ARR:
-                        return tfun(t, parse_type());
+                        return tfun(t, parse_type(sep));
                 default:
                         error("Unexpected token.", tok.linum, tok.cpos,
                               SYNTAX_ERROR);
@@ -459,17 +459,17 @@ parse_type()
         } return t;
 }
 
-Elist *
+EList *
 parse_arg(unsigned int sep)
 {
-        Elist args;
-        Elist *p;
+        EList args;
+        EList *p;
 
         p = &args;
         args.next = NULL;
         if (peek(sep)) return NULL;
         while (act_token().type != sep) {
-                p->next = safe_malloc(sizeof(Elist));
+                p->next = safe_malloc(sizeof(EList));
                 p->next->expr = *parse_expr();
                 if (p->next->expr.type != VAR)
                         error("Unexpected token.", act_token().linum,
@@ -479,28 +479,63 @@ parse_arg(unsigned int sep)
         } return args.next;
 }
 
-Decllist *
-parse_type_decl()
-{
-        Decllist *decl;
+SList *types = NULL;
 
-        return decl;
+void
+add_type(char *s)
+{
+        SList *ntypes;
+
+        ntypes = safe_malloc(sizeof(SList));
+        *ntypes = (SList){.s = s, .next = types};
+        types = ntypes;
 }
 
-Decllist *
+char *
+extract_type_name()
+{
+
+        assert(IDE);
+        if (islower(*act_token().str))
+                error("Type's name starts with a upper case letter.",
+                      act_token().linum, act_token().cpos, SYNTAX_ERROR);
+        return act_token().str;
+}
+
+TypeDecl
+parse_type_decl()
+{
+        char *name;
+        TypeDecl d;
+
+        name = extract_type_name();
+        d.name = name;
+        if (peek(LPARENT)) {
+
+        } else d.args = NULL;
+        return d;
+}
+
+DeclList
+type_decls_to_decls(TDeclList *l)
+{
+
+}
+
+DeclList *
 parse_top_level()
 {
-        Decllist *ret;
+        DeclList *ret;
         Decl decl;
         Token tok;
 
-        ret = safe_malloc(sizeof(Decllist));
+        ret = safe_malloc(sizeof(DeclList));
         tok = next_token();
         if (tok.type == IDE) {
                 char *name = tok.str;
                 tok = next_token();
                 if (tok.type == LPARENT) {
-                        Elist *args = parse_arg(RPARENT);
+                        EList *args = parse_arg(RPARENT);
                         assert(ARR);
                         decl = (Decl){.type = FUN_DECL,
                                       .fun_decl.args = args,
@@ -513,19 +548,22 @@ parse_top_level()
                              act_token().cpos, SYNTAX_ERROR);
         } else if (tok.type == EXTERN) {
                 tok = next_token();
-                init_ctx = add_ctx(init_ctx, tok.str, gen(parse_type()));
+                init_ctx = add_ctx(init_ctx, tok.str, gen(parse_type(DOT)));
                 return NULL;
+        } else if (tok.type == TYPE) {
+                add_type(extract_type_name());
+                assert(EQUAL);
         } else error("Unexpected token.", act_token().linum,
                      act_token().cpos, SYNTAX_ERROR);
-        *ret = (Decllist){.next = NULL, .decl = decl};
+        *ret = (DeclList){.next = NULL, .decl = decl};
         return ret;
 }
 
-Decllist *
+DeclList *
 parse_program()
 {
-        Decllist *p;
-        Decllist decls;
+        DeclList *p;
+        DeclList decls;
 
         decls.next = NULL;
         p = &decls;
@@ -796,7 +834,7 @@ infer(Expr expr, Context *ctx)
                 app_subst_ctx(ft.subst, ctx);
                 /* Get number of arguments */
                 int length = 0;
-                Elist *p = expr.fun_call.args;
+                EList *p = expr.fun_call.args;
                 while (p) {
                         ++length;
                         p = p->next;
@@ -845,7 +883,7 @@ infer(Expr expr, Context *ctx)
 }
 
 TypeReturn
-infer_args(Elist *args, Context *ctx)
+infer_args(EList *args, Context *ctx)
 {
         TypeReturn tp;
 
@@ -892,7 +930,7 @@ infer_decl(Decl decl, Context *ctx)
                 tp = infer_body(decl.var_decl, ctx);
                 break;
         case FUN_DECL: {
-                Elist *p = decl.fun_decl.args;
+                EList *p = decl.fun_decl.args;
                 Type *decl_type = tvar(++nvar);
                 ctx = add_ctx(ctx, decl.name, scheme(NULL, decl_type));
                 while (p) {
@@ -920,7 +958,7 @@ infer_decl(Decl decl, Context *ctx)
 }
 
 TypeReturn
-infer_body(Elist *body, Context *ctx)
+infer_body(EList *body, Context *ctx)
 {
         TypeReturn tp;
 
@@ -935,7 +973,7 @@ infer_body(Elist *body, Context *ctx)
 }
 
 Context *
-infer_decls(Decllist *decls, Context *ctx)
+infer_decls(DeclList *decls, Context *ctx)
 {
 
         while (decls) {
@@ -954,7 +992,7 @@ print_tab(int tab)
 }
 
 void
-print_elist(Elist *elist, int tab)
+print_elist(EList *elist, int tab)
 {
 
         while (elist) {
@@ -964,7 +1002,7 @@ print_elist(Elist *elist, int tab)
 }
 
 void
-print_decllist(Decllist *decllist, int tab)
+print_decllist(DeclList *decllist, int tab)
 {
 
         while (decllist) {
@@ -1368,7 +1406,7 @@ compile_expr(Expr e, SContext *ctx, char *reg)
                 return ret_reg;
         }
         case LETIN: {
-                Decllist *p = e.letin.decl;
+                DeclList *p = e.letin.decl;
                 FreeBSSTable *f_table = NULL;
                 int length = 0;
                 while (p) {
@@ -1405,7 +1443,7 @@ compile_expr(Expr e, SContext *ctx, char *reg)
                                 ++nvar;
                         }
                 compile_expr(*e.fun_call.fun, ctx, "rax");
-                Elist *p = e.fun_call.args;
+                EList *p = e.fun_call.args;
                 while (p) {
                         char *arg = compile_expr(p->expr, ctx, NULL);
                         printf("push %s\n", arg);
@@ -1462,7 +1500,7 @@ compile_expr(Expr e, SContext *ctx, char *reg)
                        "pop rax\n"
                        "mov QWORD [%s], %s\n", scratch_reg, scratch_reg, label);
                 unsigned int length = 1;
-                Elist *ap = e.lam->fun_decl.args;
+                EList *ap = e.lam->fun_decl.args;
                 SContext *p = ctx;
                 while (ap) {
                         ctx = add_sctx(ctx, ap->expr.var, ++nvar);
@@ -1502,7 +1540,7 @@ compile_expr(Expr e, SContext *ctx, char *reg)
 }
 
 char *
-compile_body(Elist *body, SContext *ctx, char *reg)
+compile_body(EList *body, SContext *ctx, char *reg)
 {
         char *s;
 
@@ -1526,7 +1564,7 @@ compile_decl(Decl decl, SContext *ctx, char *name)
                 char label[64];
                 int length = 1;
                 int n = ++ndecl;
-                Elist *p = decl.fun_decl.args;
+                EList *p = decl.fun_decl.args;
                 sprintf(label, "__decl%d", ++ndecl);
                 printf("jmp %s\n"
                        "__%s%d:\n", label, name, n);
@@ -1562,7 +1600,7 @@ compile_bss()
 }
 
 void
-compile_decls(Decllist *decls)
+compile_decls(DeclList *decls)
 {
 
         while (decls) {
@@ -1589,7 +1627,7 @@ char *epilog =
 void
 program(char *prog)
 {
-        Decllist *decl;
+        DeclList *decl;
 
         s = prog;
         linum = 1;
