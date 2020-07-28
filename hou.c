@@ -1288,7 +1288,7 @@ print_type(Type t)
         }
 }
 
-#define NREG 8
+#define NREG 10
 
 int used_registers[NREG] = {
         0,
@@ -1302,6 +1302,7 @@ int used_registers[NREG] = {
 };
 
 char *registers[NREG] = {
+        "rbx",
         "rcx",
         "rdx",
         "rdi",
@@ -1309,7 +1310,8 @@ char *registers[NREG] = {
         "r8",
         "r9",
         "r10",
-        "r11"
+        "r11",
+        "r12"
 };
 
 BSSTable *bss_table;
@@ -1411,6 +1413,38 @@ is_power_of2(int n)
         } return i;
 }
 
+int used_save_regs = 0;
+
+int
+push(char *reg)
+{
+
+        if (used_save_regs < 4) {
+                ++used_save_regs;
+                int i = alloc_reg();
+                fprintf(out, "mov %s, %s\n", registers[i], reg);
+                return i;
+        } else {
+                fprintf(out, "push %s\n", reg);
+                ++nvar;
+                return -1;
+        }
+}
+
+void
+pop(char *reg, int i)
+{
+
+        if (i == -1) {
+                --nvar;
+                fprintf(out, "pop %s\n", reg);
+        } else {
+                --used_save_regs;
+                used_registers[i] = 0;
+                fprintf(out, "mov %s, %s\n", reg, registers[i]);
+        }
+}
+
 void
 cmp_e(char *l, char *r, char *op)
 {
@@ -1427,25 +1461,23 @@ void
 div_op(char *ret_reg, char *regl, char *regr)
 {
         int reg = -1;
-        if (strcmp(regl, "rax")) {
-                fprintf(out, "push rax\n");
-                ++nvar;
-        } if (!strcmp("rdx", regr)) {
+        int prax;
+        int prdx;
+       
+        if (strcmp(regl, "rax")) prax = push("rax");
+        if (!strcmp("rdx", regr)) {
                 reg = alloc_reg();
                 fprintf(out, "mov %s, rdx\n", registers[reg]);
                 regr = safe_malloc(4);
                 strcpy(regr, registers[reg]);
-        } if (strcmp("rdx", regl)) fprintf(out, "push rdx\n");
+        } if (strcmp("rdx", regl)) prdx = push("rdx");
         fprintf(out, "mov rax, %s\n"
                "xor rdx, rdx\n"
                "div %s\n"
                "mov %s, %s\n", regl, regr, regl, ret_reg);
-        if (strcmp("rdx", regl)) fprintf(out, "pop rdx\n");
+        if (strcmp("rdx", regl)) pop("rdx", prdx);
         if (reg != -1) used_registers[reg] = 0;
-        if (strcmp(regl, "rax")) {
-                fprintf(out, "pop rax\n");
-                --nvar;
-        }
+        if (strcmp(regl, "rax")) pop("rax", prax);
 }
 
 char *
@@ -1563,15 +1595,12 @@ compile_expr(Expr e, SContext *ctx, char *reg)
                 int length = 0;
                 /* Saves registers. */
                 int local_used[NREG];
-                if (!reg || strcmp(reg, "rax")) {
-                        fprintf(out, "push rax\n");
-                        ++nvar;
-                } memcpy(local_used, used_registers, NREG * sizeof(int));
+                int pushed[NREG];
+                int prax;
+                if (!reg || strcmp(reg, "rax")) prax = push("rax");
+                memcpy(local_used, used_registers, NREG * sizeof(int));
                 for (int i = 0; i < NREG; ++i)
-                        if (local_used[i]) {
-                                fprintf(out, "push %s\n", registers[i]);
-                                ++nvar;
-                        }
+                        if (local_used[i]) pushed[i] = push(registers[i]);
                 compile_expr(*e.fun_call.fun, ctx, "rax");
                 EList *p = e.fun_call.args;
                 while (p) {
@@ -1586,15 +1615,10 @@ compile_expr(Expr e, SContext *ctx, char *reg)
                 nvar -= length;
                 char *ret_reg = reg ? reg : registers[alloc_reg()];
                 for (int i = NREG - 1; i >= 0; --i)
-                        if (local_used[i]) {
-                                fprintf(out, "pop %s\n", registers[i]);
-                                --nvar;
-                        }
+                        if (local_used[i]) pop(registers[i], pushed[i]);
                 fprintf(out, "mov %s, rax\n", ret_reg);
-                if (!reg || strcmp(reg, "rax")) {
-                        fprintf(out, "pop rax\n");
-                        --nvar;
-                } return ret_reg;
+                if (!reg || strcmp(reg, "rax")) pop("rax", prax);
+                return ret_reg;
         }
         case IF_CLAUSE: {
                 char *scratch_reg = compile_expr(*e.if_clause.condition, ctx, NULL);
@@ -1665,8 +1689,7 @@ compile_expr(Expr e, SContext *ctx, char *reg)
                 } nvar = save_nvar;
                 return ret_reg;
         }
-        }
-        return "";
+        } return "";
 }
 
 char *
@@ -1747,9 +1770,11 @@ char *prolog =
         "extern malloc\n"
         "section .text\n"
         "main:\n"
-        "push rbx\n";
+        "push rbx\n"
+        "push r12\n";
 
 char *epilog =
+        "pop r12\n"
         "pop rbx\n"
         "mov rax, 60\n"
         "syscall\n";
