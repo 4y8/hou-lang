@@ -134,7 +134,26 @@ token_num(int num)
 
 }
 
-char *s;
+int unsused_char = EOF;
+int act_char = EOF;
+FILE *in;
+
+char
+next_char()
+{
+        if (unsused_char != EOF) {
+                act_char = unsused_char;
+                unsused_char = EOF;
+                return act_char;
+        } else return (char)(act_char = fgetc(in));
+}
+
+int
+used_char()
+{
+
+        return unsused_char == EOF ? act_char : unsused_char;
+}
 
 char *
 lex_while(int (*fun)(int))
@@ -142,13 +161,13 @@ lex_while(int (*fun)(int))
         char *str;
         int i;
 
-        i = 1;
-        while (fun(*(++s))) {
+        i = 0;
+        str = safe_malloc(256);
+        while (fun(next_char())) {
+                str[i] = act_char;
                 ++i;
                 ++cpos;
-        } str = safe_malloc(i + 1);
-        strncpy(str, s - i, i);
-        str[i] = 0;
+        } str[i] = 0;
         --cpos;
         return str;
 }
@@ -157,7 +176,7 @@ int
 iside(int c)
 {
 
-        return isalnum(c) || c == '_';
+        return isalnum(c) || c == '_' || c == '\'';
 }
 
 Token
@@ -165,38 +184,43 @@ lexer()
 {
         Token tok;
 
-        if (*s == 0) return token(END);
-        if (isalpha(*s)) {
+        if (used_char() == EOF) return token(END);
+        if (isalpha(used_char())) {
                 char *str = lex_while(iside);
                 int i = keyword_to_token(str);
                 if (i == -1) tok = token_str(str);
                 else tok = token(i);
-        } else if (isdigit(*s)) {
+        } else if (isdigit(used_char())) {
                 tok = token_num(atoi(lex_while(isdigit)));
         } else {
-                int i = punct_to_token(*s);
+                int i = punct_to_token(used_char());
                 if (i != -1) tok = token(i);
                 else {
-                        switch (*s) {
+                        switch (used_char()) {
                         case '\n': ++linum; cpos = -1;
-                        case ' ': case '\t': ++cpos; ++s; tok = lexer(); --s;
+                        case ' ': case '\t':
+                                ++cpos;
+                                next_char();
+                                tok = lexer();
+                                unsused_char = used_char();
                                 break;
                         case '-':
-                                if (*(++s) == '>') {
+                                if (next_char() == '>') {
                                         tok = token(ARR);
                                         ++cpos;
-                                } else if (*s == '-') {
-                                        while(*(++s) != '\n' && *s != 0) ++cpos;
+                                } else if (used_char() == '-') {
+                                        while(next_char() != '\n' &&
+                                              used_char() != 0) ++cpos;
                                         return lexer();
                                 } else {
-                                        --s;
+                                        unsused_char = used_char();
                                         tok = token(MINUS);
                                 } break;
                         default : error("Unexecpected charachter", linum, cpos,
                                         UNEXPECTED_CHAR);
                         }
                 } ++cpos;
-                ++s;
+                next_char();
         } return tok;
 }
 
@@ -1334,7 +1358,6 @@ alloc_bss(int size)
         } name = safe_malloc(256);
         sprintf(name, "_bss_%d", ++ndecl);
         add_bss(name, size);
-        sprintf(name, "__bss_%d", ++ndecl);
         return name;
 }
 
@@ -1732,7 +1755,8 @@ program(char *prog)
 {
         DeclList *decl;
 
-        s = prog;
+        in = fopen(prog, "r");
+        next_char();
         linum = 1;
         cpos  = 0;
         decl  = parse_program();

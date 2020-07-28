@@ -1,15 +1,16 @@
 = MAIN 
 	= Functional
-		~ Lambdas
+		- Lambdas
 		~ ADTs
 		+ Pattern matching
+		+ Parial application
 		+ Type classes (Eq, Print)
 	= Imperative
 		+ Mutability
 		+ While loops
 		+ For loops
 	= Other
-		~ Parentheses
+		- Parentheses
 		+ Strings
 		+ Custom operators
 = SIDE
