@@ -473,6 +473,7 @@ parse_type(unsigned int sep)
 
         t = NULL;
         while (!peek(sep)) {
+                Type *st = t;
                 tok = next_token();
                 switch(tok.type) {
                 case IDE:
@@ -486,7 +487,7 @@ parse_type(unsigned int sep)
                 default:
                         error("Unexpected token.", tok.linum, tok.cpos,
                               SYNTAX_ERROR);
-                }
+                } if (st) t = tpar(st, t);
         } return t;
 }
 
@@ -647,6 +648,8 @@ type_decls_to_decls(TDeclList *l, int length)
         return dl.next;
 }
 
+Context *init_type_ctx = NULL;
+
 DeclList *
 parse_top_level()
 {
@@ -686,7 +689,10 @@ parse_top_level()
                         p = p->next;
                 } while (peek(OR));
                 p->next = NULL;
-                return type_decls_to_decls(t.next, 2);
+                p = t.next;
+                int len = 0;
+                length(p, len);
+                return type_decls_to_decls(t.next, len);
         } else error("Unexpected token.", act_token().linum,
                      act_token().cpos, SYNTAX_ERROR);
         *ret = (DeclList){.next = NULL, .decl = decl};
@@ -782,6 +788,16 @@ tfun(Type *left, Type *right)
 }
 
 Type *
+tpar(Type *left, Type *right)
+{
+        Type *t;
+
+        t = safe_malloc(sizeof(Type));
+        *t = (Type){.type = TPAR, .fun.right = right, .fun.left = left};
+        return t;
+}
+
+Type *
 tvar(unsigned int var)
 {
         Type *t;
@@ -859,7 +875,8 @@ unify(Type *t1, Type *t2)
                 s = NULL;
         else if (t1->type == TVAR) s = bind(t1->var, t2);
         else if (t2->type == TVAR) s = bind(t2->var, t1);
-        else if (t1->type == TFUN && t2->type == TFUN) {
+        else if ((t1->type == TFUN && t2->type == TFUN) ||
+                 (t1->type == TPAR && t2->type == TPAR)) {
                 Subst *s1 = unify(t1->fun.left, t2->fun.left);
                 Subst *s2 = unify(app_subst(t1->fun.right, s1),
                                   app_subst(t2->fun.right, s1));
@@ -1496,7 +1513,7 @@ compile_expr(Expr e, SContext *ctx, char *reg)
         case BINOP: {
                 if (e.binop.right->type == INT) {
                         if (e.binop.right->num == 0)
-                                switch(e.binop.op) {
+                                switch (e.binop.op) {
                                 case OP_PLUS: /* FALLTHROUGH */
                                 case OP_MINUS:
                                         return compile_expr(*e.binop.left, ctx, reg);
@@ -1508,6 +1525,24 @@ compile_expr(Expr e, SContext *ctx, char *reg)
                                               SYNTAX_ERROR);
                                 default: break;
                                 }
+                        else if (e.binop.right->num == 1) {
+                                switch (e.binop.right->num) {
+                                case OP_PLUS: {
+                                        char *regl = compile_expr(*e.binop.left, ctx, reg);
+                                        fprintf(out, "inc %s\n", regl);
+                                        return regl;
+                                }
+                                case OP_MINUS: {
+                                        char *regl = compile_expr(*e.binop.left, ctx, reg);
+                                        fprintf(out, "dec %s\n", regl);
+                                        return regl;
+                                }
+                                case OP_TIMES:
+                                        return compile_expr(*e.binop.left, ctx, reg);
+                                case OP_DIVISE:
+                                        return compile_expr(*e.binop.left, ctx, reg);
+                                }
+                        }
                         int n = is_power_of2(e.binop.right->num);
                         if (n != -1) {
                                 if (e.binop.op == OP_TIMES) {
@@ -1524,9 +1559,10 @@ compile_expr(Expr e, SContext *ctx, char *reg)
                         }
                 } if (e.binop.left->type == INT) {
                         if (e.binop.left->num == 0)
-                                switch(e.binop.op) {
+                                switch (e.binop.op) {
                                 case OP_PLUS:
                                         return compile_expr(*e.binop.right, ctx, reg);
+                                case OP_DIVISE:
                                 case OP_TIMES:
                                         return compile_expr((Expr){.type = INT,
                                                                 .num = 0}, ctx, reg);
@@ -1599,10 +1635,9 @@ compile_expr(Expr e, SContext *ctx, char *reg)
                 EList *p = e.fun_call.args;
                 while (p) {
                         char *arg = compile_expr(p->expr, ctx, NULL);
-                        fprintf(out, "push %s\n", arg);
+                        push(arg);
                         free_reg(arg);
                         p = p->next;
-                        ++nvar;
                         ++length;
                 } fprintf(out, "call [rax]\n");
                 fprintf(out, "add rsp, %d\n", length << 3);
