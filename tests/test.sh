@@ -2,7 +2,7 @@
 
 test() {
     cat ../stdlib.hou "$1" > temp.hou
-    ./a.out temp.hou > out.asm &&
+    ./a.out temp.hou &&
 	cat out.asm ../stdlib.asm > o.asm &&
         nasm -felf64 o.asm -o out.o &&
         musl-gcc out.o -static -o out
