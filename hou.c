@@ -5,6 +5,12 @@
 #include <stdio.h>
 #include "hou.h"
 
+#define length(l, i) while(l) {                 \
+        ++i;                                    \
+        l = l->next;                            \
+        }
+
+
 #define NKEYWORD 7
 #define NPUNCT   15
 
@@ -1066,15 +1072,13 @@ infer_decl(Decl decl, Context *ctx)
                 } TypeReturn bt = infer_body(decl.fun_decl.body, ctx);
                 app_subst_ctx(bt.subst, ctx);
                 tp.subst = bt.subst;
-                int length = 0;
+                int len = 0;
                 p = decl.fun_decl.args;
-                while (p) {
-                        ++length;
-                        p = p->next;
-                } p = decl.fun_decl.args;
+                length(p, len);
+                p = decl.fun_decl.args;
                 TypeReturn at = infer_args(decl.fun_decl.args, ctx);
                 if (!p) at.type = tfun(tlit("Unit"), bt.type);
-                else    at.type = add_tfun(at.type, bt.type, length);
+                else    at.type = add_tfun(at.type, bt.type, len);
                 tp.subst = compose_subst(unify(decl_type, at.type), tp.subst);
                 tp.type = app_subst(at.type, tp.subst);
                 break;
@@ -1415,34 +1419,33 @@ is_power_of2(int n)
 
 int used_save_regs = 0;
 
-int
+void
 push(char *reg)
 {
-
-        if (used_save_regs < 4) {
-                ++used_save_regs;
-                int i = alloc_reg();
-                fprintf(out, "mov %s, %s\n", registers[i], reg);
-                return i;
-        } else {
-                fprintf(out, "push %s\n", reg);
-                ++nvar;
-                return -1;
-        }
+        fprintf(out, "push %s\n", reg);
+        ++nvar;
 }
 
 void
-pop(char *reg, int i)
+pop(char *reg)
 {
 
-        if (i == -1) {
-                --nvar;
-                fprintf(out, "pop %s\n", reg);
-        } else {
-                --used_save_regs;
-                used_registers[i] = 0;
-                fprintf(out, "mov %s, %s\n", reg, registers[i]);
-        }
+        fprintf(out, "pop %s\n", reg);
+        --nvar;
+}
+
+char *
+op_to_suffix(unsigned int op)
+{
+
+        switch (op) {
+                case OP_LOW:    return "l";  break;
+                case OP_LOWE:   return "le"; break;
+                case OP_EQUAL:  return "e";  break;
+                case OP_GREAT:  return "g";  break;
+                case OP_GREATE: return "ge"; break;
+                case OP_NEQUAL: return "ne"; break;
+        } return "";
 }
 
 void
@@ -1461,23 +1464,21 @@ void
 div_op(char *ret_reg, char *regl, char *regr)
 {
         int reg = -1;
-        int prax;
-        int prdx;
-       
-        if (strcmp(regl, "rax")) prax = push("rax");
+      
+        if (strcmp(regl, "rax")) push("rax");
         if (!strcmp("rdx", regr)) {
                 reg = alloc_reg();
                 fprintf(out, "mov %s, rdx\n", registers[reg]);
                 regr = safe_malloc(4);
                 strcpy(regr, registers[reg]);
-        } if (strcmp("rdx", regl)) prdx = push("rdx");
+        } if (strcmp("rdx", regl)) push("rdx");
         fprintf(out, "mov rax, %s\n"
                "xor rdx, rdx\n"
                "div %s\n"
                "mov %s, %s\n", regl, regr, regl, ret_reg);
-        if (strcmp("rdx", regl)) pop("rdx", prdx);
+        if (strcmp("rdx", regl)) pop("rdx");
         if (reg != -1) used_registers[reg] = 0;
-        if (strcmp(regl, "rax")) pop("rax", prax);
+        if (strcmp(regl, "rax")) pop("rax");
 }
 
 char *
@@ -1542,17 +1543,12 @@ compile_expr(Expr e, SContext *ctx, char *reg)
                 char *regl = compile_expr(*e.binop.left, ctx, reg);
                 char *regr = compile_expr(*e.binop.right, ctx, NULL);
                 switch (e.binop.op) {
-                case OP_MOD:    div_op("rdx", regl, regr);           break;
+                case OP_MOD:    div_op("rdx", regl, regr);                 break;
                 case OP_PLUS:   fprintf(out, "add %s, %s\n", regl, regr);  break;
                 case OP_MINUS:  fprintf(out, "sub %s, %s\n", regl, regr);  break;
                 case OP_TIMES:  fprintf(out, "imul %s, %s\n", regl, regr); break;
-                case OP_DIVISE: div_op("rax", regl, regr);           break;
-                case OP_LOW:    cmp_e(regl, regr, "l");              break;
-                case OP_LOWE:   cmp_e(regl, regr, "le");             break;
-                case OP_EQUAL:  cmp_e(regl, regr, "e");              break;
-                case OP_GREAT:  cmp_e(regl, regr, "g");              break;
-                case OP_GREATE: cmp_e(regl, regr, "ge");             break;
-                case OP_NEQUAL: cmp_e(regl, regr, "ne");             break;
+                case OP_DIVISE: div_op("rax", regl, regr);                 break;
+                default:        cmp_e(regl, regr, op_to_suffix(e.binop.op));
                 } free_reg(regr);
                 return regl;
         }
@@ -1595,12 +1591,10 @@ compile_expr(Expr e, SContext *ctx, char *reg)
                 int length = 0;
                 /* Saves registers. */
                 int local_used[NREG];
-                int pushed[NREG];
-                int prax;
-                if (!reg || strcmp(reg, "rax")) prax = push("rax");
+                if (!reg || strcmp(reg, "rax")) push("rax");
                 memcpy(local_used, used_registers, NREG * sizeof(int));
                 for (int i = 0; i < NREG; ++i)
-                        if (local_used[i]) pushed[i] = push(registers[i]);
+                        if (local_used[i]) push(registers[i]);
                 compile_expr(*e.fun_call.fun, ctx, "rax");
                 EList *p = e.fun_call.args;
                 while (p) {
@@ -1615,23 +1609,40 @@ compile_expr(Expr e, SContext *ctx, char *reg)
                 nvar -= length;
                 char *ret_reg = reg ? reg : registers[alloc_reg()];
                 for (int i = NREG - 1; i >= 0; --i)
-                        if (local_used[i]) pop(registers[i], pushed[i]);
+                        if (local_used[i]) pop(registers[i]);
                 fprintf(out, "mov %s, rax\n", ret_reg);
-                if (!reg || strcmp(reg, "rax")) pop("rax", prax);
+                if (!reg || strcmp(reg, "rax")) pop("rax");
                 return ret_reg;
         }
         case IF_CLAUSE: {
-                char *scratch_reg = compile_expr(*e.if_clause.condition, ctx, NULL);
                 char label_if[128], label_else[128], label_end[128];
                 char *ret_reg = reg ? reg : registers[alloc_reg()];
                 sprintf(label_if, "__if%d", ++ndecl);
                 sprintf(label_end, "__end%d", ndecl);
                 sprintf(label_else, "__else%d", ndecl);
-                fprintf(out, "cmp %s, 1\n"
-                       "je %s\n"
-                       "jmp %s\n"
-                       "%s:\n", scratch_reg, label_if, label_else, label_if);
-                compile_body(e.if_clause.if_expr, ctx, ret_reg);
+                if (e.if_clause.condition->type == BINOP) {
+                        char *regr =
+                                compile_expr(*e.if_clause.condition->binop.right,
+                                             ctx, NULL);
+                        char *regl =
+                                compile_expr(*e.if_clause.condition->binop.left,
+                                             ctx, NULL);
+                        fprintf(out,
+                                "cmp %s, %s\n"
+                                "j%s %s\n"
+                                "jmp %s\n"
+                                "%s:\n", regl, regr,
+                                op_to_suffix(e.if_clause.condition->binop.op),
+                                label_if, label_else, label_if);
+
+                } else {
+                        char *scratch_reg = compile_expr(*e.if_clause.condition, ctx, NULL);
+                        fprintf(out, "cmp %s, 1\n"
+                                "je %s\n"
+                                "jmp %s\n"
+                                "%s:\n",
+                                scratch_reg, label_if, label_else, label_if);
+                } compile_body(e.if_clause.if_expr, ctx, ret_reg);
                 fprintf(out, "jmp %s\n", label_end);
                 fprintf(out, "%s:\n", label_else);
                 if (e.if_clause.else_expr)
