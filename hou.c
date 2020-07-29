@@ -1546,10 +1546,11 @@ compile_expr(Expr e, SContext *ctx, char *reg)
                 return ret_reg;
         }
         case BINOP: {
-                if (e.binop.right->type == INT) {
-                        unsigned int op = e.binop.op;
+                unsigned int op = e.binop.op;
+                Expr lexpr = *e.binop.left;
+                Expr rexpr = *e.binop.right;
+                if (rexpr.type == INT) {
                         int num = e.binop.right->num;
-                        Expr lexpr = *e.binop.left;
                         if (num == 0)
                                 switch (op) {
                                 case OP_PLUS: /* FALLTHROUGH */
@@ -1563,7 +1564,7 @@ compile_expr(Expr e, SContext *ctx, char *reg)
                                               SYNTAX_ERROR);
                                 default: break;
                                 }
-                        else if (num == 1) {
+                        else if (num == 1)
                                 switch (op) {
                                 case OP_PLUS: {
                                         char *regl = compile_expr(lexpr, ctx, reg);
@@ -1581,32 +1582,29 @@ compile_expr(Expr e, SContext *ctx, char *reg)
                                         return compile_expr(lexpr, ctx, reg);
                                 default: break;
                                 }
-                        }
-                        int n = is_power_of2(e.binop.right->num);
+                        int n = is_power_of2(rexpr.num);
                         if (n != -1) {
                                 if (e.binop.op == OP_TIMES) {
-                                        char *ret_reg = compile_expr(lexpr,
-                                                                     ctx, reg);
-                                        fprintf(out, "shl %s, %d\n", ret_reg, n);
-                                        return ret_reg;
+                                        char *ret = compile_expr(lexpr, ctx, reg);
+                                        fprintf(out, "shl %s, %d\n", ret, n);
+                                        return ret;
                                 } if (e.binop.op == OP_DIVISE) {
-                                        char *ret_reg = compile_expr(lexpr,
-                                                                     ctx, reg);
-                                        fprintf(out, "shr %s, %d\n", ret_reg, n);
-                                        return ret_reg;
+                                        char *ret = compile_expr(lexpr, ctx, reg);
+                                        fprintf(out, "shr %s, %d\n", ret, n);
+                                        return ret;
                                 }
-                        } char temp[256];
-                        sprintf(temp, "%d", e.binop.right->num);
-                        if (op != OP_MOD && op != OP_DIVISE) {
-                                char *regl = compile_expr(*e.binop.left, ctx, reg);
+                        } if (op != OP_MOD && op != OP_DIVISE) {
+                                char temp[256];
+                                sprintf(temp, "%d", rexpr.num);
+                                char *regl = compile_expr(lexpr, ctx, reg);
                                 compile_op(regl, temp, op);
                                 return regl;
                         }
-                } if (e.binop.left->type == INT) {
-                        if (e.binop.left->num == 0)
-                                switch (e.binop.op) {
+                } if (lexpr.type == INT) {
+                        if (lexpr.num == 0)
+                                switch (op) {
                                 case OP_PLUS:
-                                        return compile_expr(*e.binop.right, ctx, reg);
+                                        return compile_expr(rexpr, ctx, reg);
                                 case OP_DIVISE:
                                 case OP_TIMES:
                                         return compile_expr((Expr){.type = INT,
@@ -1614,16 +1612,21 @@ compile_expr(Expr e, SContext *ctx, char *reg)
                                 default: break;
                                 }
                         int n = is_power_of2(e.binop.left->num);
-                        if (n != -1 && e.binop.op == OP_TIMES) {
-                                char *ret_reg = compile_expr(*e.binop.right,
-                                                         ctx, reg);
-                                fprintf(out, "shl %s, %d\n", ret_reg, n);
-                                return ret_reg;
+                        if (n != -1 && op == OP_TIMES) {
+                                char *ret = compile_expr(rexpr, ctx, reg);
+                                fprintf(out, "shl %s, %d\n", ret, n);
+                                return ret;
+                        } if (op != OP_MOD && op != OP_DIVISE) {
+                                char temp[256];
+                                sprintf(temp, "%d", lexpr.num);
+                                char *regr = compile_expr(rexpr, ctx, reg);
+                                compile_op(regr, temp, op);
+                                return regr;
                         }
                 }
-                char *regl = compile_expr(*e.binop.left, ctx, reg);
-                char *regr = compile_expr(*e.binop.right, ctx, NULL);
-                compile_op(regl, regr, e.binop.op);
+                char *regl = compile_expr(lexpr, ctx, reg);
+                char *regr = compile_expr(rexpr, ctx, NULL);
+                compile_op(regl, regr, op);
                 free_reg(regr);
                 return regl;
         }
