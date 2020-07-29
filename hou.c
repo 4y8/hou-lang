@@ -1434,7 +1434,12 @@ is_power_of2(int n)
         } return i;
 }
 
-int used_save_regs = 0;
+void
+mov(char *l, char *r)
+{
+
+        if (strcmp(l, r)) fprintf(out, "mov %s, %s\n", l, r);
+}
 
 void
 push(char *reg)
@@ -1485,14 +1490,14 @@ div_op(char *ret_reg, char *regl, char *regr)
         if (strcmp(regl, "rax")) push("rax");
         if (!strcmp("rdx", regr)) {
                 reg = alloc_reg();
-                fprintf(out, "mov %s, rdx\n", registers[reg]);
+                mov(registers[reg], "rdx");
                 regr = safe_malloc(4);
                 strcpy(regr, registers[reg]);
         } if (strcmp("rdx", regl)) push("rdx");
-        fprintf(out, "mov rax, %s\n"
-               "xor rdx, rdx\n"
-               "div %s\n"
-               "mov %s, %s\n", regl, regr, regl, ret_reg);
+        mov("rax", regl);
+        fprintf(out, "xor rdx, rdx\n"
+               "div %s\n", regr);
+        mov(regl, ret_reg);
         if (strcmp("rdx", regl)) pop("rdx");
         if (reg != -1) used_registers[reg] = 0;
         if (strcmp(regl, "rax")) pop("rax");
@@ -1557,8 +1562,7 @@ compile_expr(Expr e, SContext *ctx, char *reg)
                                 case OP_MINUS:
                                         return compile_expr(lexpr, ctx, reg);
                                 case OP_TIMES:
-                                        return compile_expr((Expr){.type = INT,
-                                                                .num = 0}, ctx, reg);
+                                        return compile_expr(rexpr, ctx, reg);
                                 case OP_DIVISE:
                                         error("Division by zero.", e.linum, e.cpos,
                                               SYNTAX_ERROR);
@@ -1582,15 +1586,19 @@ compile_expr(Expr e, SContext *ctx, char *reg)
                                         return compile_expr(lexpr, ctx, reg);
                                 default: break;
                                 }
-                        int n = is_power_of2(rexpr.num);
+                        int n = is_power_of2(num);
                         if (n != -1) {
-                                if (e.binop.op == OP_TIMES) {
+                                if (op == OP_TIMES) {
                                         char *ret = compile_expr(lexpr, ctx, reg);
                                         fprintf(out, "shl %s, %d\n", ret, n);
                                         return ret;
-                                } if (e.binop.op == OP_DIVISE) {
+                                } if (op == OP_DIVISE) {
                                         char *ret = compile_expr(lexpr, ctx, reg);
                                         fprintf(out, "shr %s, %d\n", ret, n);
+                                        return ret;
+                                } if (op == OP_MOD) {
+                                        char *ret = compile_expr(lexpr, ctx, reg);
+                                        fprintf(out, "and %s, %d\n", ret, num - 1);
                                         return ret;
                                 }
                         } if (op != OP_MOD && op != OP_DIVISE) {
@@ -1601,17 +1609,17 @@ compile_expr(Expr e, SContext *ctx, char *reg)
                                 return regl;
                         }
                 } if (lexpr.type == INT) {
-                        if (lexpr.num == 0)
+                        int num = e.binop.left->num;
+                        if (num == 0)
                                 switch (op) {
                                 case OP_PLUS:
                                         return compile_expr(rexpr, ctx, reg);
                                 case OP_DIVISE:
                                 case OP_TIMES:
-                                        return compile_expr((Expr){.type = INT,
-                                                                .num = 0}, ctx, reg);
+                                        return compile_expr(lexpr, ctx, reg);
                                 default: break;
                                 }
-                        int n = is_power_of2(e.binop.left->num);
+                        int n = is_power_of2(num);
                         if (n != -1 && op == OP_TIMES) {
                                 char *ret = compile_expr(rexpr, ctx, reg);
                                 fprintf(out, "shl %s, %d\n", ret, n);
@@ -1687,6 +1695,7 @@ compile_expr(Expr e, SContext *ctx, char *reg)
                 char *ret_reg = reg ? reg : registers[alloc_reg()];
                 for (int i = NREG - 1; i >= 0; --i)
                         if (local_used[i]) pop(registers[i]);
+                mov(ret_reg, "rax");
                 fprintf(out, "mov %s, rax\n", ret_reg);
                 if (!reg || strcmp(reg, "rax")) pop("rax");
                 return ret_reg;
