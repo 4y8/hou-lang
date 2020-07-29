@@ -1649,20 +1649,17 @@ compile_expr(Expr e, SContext *ctx, char *reg)
         }
         case VAR: {
                 char *ret_reg = reg ? reg : registers[alloc_reg()];
-                int i = 0;
                 while (ctx) {
                         if (!strcmp(e.var, ctx->name)) {
-                                if (!i) {
+                                if (!ctx->next) {
                                         if (reg) {
                                                 mov(reg, "r12");
                                                 return reg;
                                         } return "r12";
-                                }
-                                fprintf(out, "mov %s, [rsp + %d]\n",
-                                       ret_reg, (nvar - ctx->num) * 8);
+                                } fprintf(out, "mov %s, [rsp + %d]\n",
+                                          ret_reg, (nvar - ctx->num) * 8);
                                 return ret_reg;
                         } ctx = ctx->next;
-                        ++i;
                 } fprintf(out, "mov %s, [_%s]\n", ret_reg, e.var);
                 return ret_reg;
         }
@@ -1754,57 +1751,71 @@ compile_expr(Expr e, SContext *ctx, char *reg)
                 fprintf(out, "%s:\n", label_end);
                 return ret_reg;
         }
-        case LAM: {
-                unsigned int save_nvar = nvar;
-                char *ret_reg = reg ? reg : registers[alloc_reg()];
-                char *scratch_reg = registers[alloc_reg()];
-                char label[64];
-                char aft_label[64];
-                sprintf(label, "__decl%d", ++ndecl);
-                sprintf(aft_label, "__decl%d", ++ndecl);
-                fprintf(out, "push rax\n");
-                fprintf(out, "mov rax, %d\n"
-                       "call _custom_malloc\n", (nvar + 2) << 3);
-                mov(scratch_reg, "rax");
-                fprintf(out, "pop rax\n"
-                       "mov QWORD [%s], %s\n", scratch_reg, label);
-                unsigned int length = 1;
-                EList *ap = e.lam->fun_decl.args;
-                SContext *p = ctx;
-                while (ap) {
-                        ctx = add_sctx(ctx, ap->expr.var, ++nvar);
-                        ++length;
-                        ap = ap->next;
-                } fprintf(out, "push rdi\n");
-                for (unsigned int i = 1; i <= nvar; ++i)
-                        fprintf(out, "mov rdi, QWORD [rsp + %d]\n"
-                               "mov QWORD [%s + %d], rdi\n",
-                               i << 3, scratch_reg, i << 3);
-                fprintf(out, "pop rdi\n");
-                fprintf(out, "jmp %s\n", aft_label);
-                fprintf(out, "%s:\n", label);
-                unsigned int old_nvar = nvar;
-                for (unsigned int i = nvar; i > 0; --i) {
-                        fprintf(out, "push QWORD [rax + %d]\n", i << 3);
-                        ++nvar;
-                } while (p) {
-                        p->num += nvar - old_nvar + 1;
-                        p = p->next;
-                } compile_body(e.lam->fun_decl.body, ctx, "rax");
-                if (old_nvar)
-                        fprintf(out, "add rsp, %d\n"
-                                "ret\n", old_nvar << 3);
-                fprintf(out, "%s:\n", aft_label);
-                mov(ret_reg, scratch_reg);
-                free_reg(scratch_reg);
-                p = ctx;
-                while (p) {
-                        p->num -= nvar - old_nvar + 1;
-                        p = p->next;
-                } nvar = save_nvar;
-                return ret_reg;
-        }
+        case LAM:
+                return compile_closure(*e.lam);
         } return "";
+}
+
+char *
+compile_closure(Decl d, char *reg, SContext *ctx)
+{
+        unsigned int save_nvar;
+        char *ret_reg;
+        char *scratch_reg;
+        char label[64];
+        char aft_label[64];
+        unsigned int length;
+        EList *ap;
+        SContext *p;
+        SContext *tctx;
+        unsigned int old_nvar;
+
+        scratch_reg = registers[alloc_reg()];
+        ret_reg = reg ? reg : registers[alloc_reg()];
+        save_nvar = nvar;
+        sprintf(label, "__decl%d", ++ndecl);
+        sprintf(aft_label, "__decl%d", ++ndecl);
+        fprintf(out, "push rax\n"
+                "mov rax, %d\n"
+                "call _custom_malloc\n", (nvar + 2) << 3);
+        mov(scratch_reg, "rax");
+        fprintf(out, "pop rax\n"
+                "mov QWORD [%s], %s\n", scratch_reg, label);
+        length = 1;
+        ap = d.fun_decl.args;
+        p = ctx;
+        while (ap) {
+                ctx = add_sctx(ctx, ap->expr.var, ++nvar);
+                ++length;
+                ap = ap->next;
+        } fprintf(out, "push rdi\n");
+        for (unsigned int i = 1; i <= nvar; ++i)
+                fprintf(out, "mov rdi, QWORD [rsp + %d]\n"
+                        "mov QWORD [%s + %d], rdi\n",
+                        i << 3, scratch_reg, i << 3);
+        fprintf(out, "pop rdi\n"
+                "jmp %s\n"
+                "%s:\n", aft_label, label);
+        old_nvar = nvar;
+        for (unsigned int i = nvar; i > 0; --i) {
+                fprintf(out, "push QWORD [rax + %d]\n", i << 3);
+                ++nvar;
+        } while (p) {
+                p->num += nvar - old_nvar + 1;
+                p = p->next;
+        } compile_body(d.fun_decl.body, ctx, "rax");
+        if (old_nvar)
+                fprintf(out, "add rsp, %d\n"
+                        "ret\n", old_nvar << 3);
+        fprintf(out, "%s:\n", aft_label);
+        mov(ret_reg, scratch_reg);
+        free_reg(scratch_reg);
+        p = ctx;
+        while (p) {
+                p->num -= nvar - old_nvar + 1;
+                p = p->next;
+        } nvar = save_nvar;
+        return ret_reg;
 }
 
 char *
@@ -1841,7 +1852,8 @@ compile_decl(Decl decl, SContext *ctx, char *name)
                         ctx = add_sctx(ctx, p->expr.var, ++nvar);
                         ++length;
                         p = p->next;
-                } compile_body(decl.fun_decl.body, ctx, "rax");
+                } ++nvar;
+                compile_body(decl.fun_decl.body, ctx, "rax");
                 fprintf(out, "ret\n"
                        "%s:\n", label);
                 char *temp = alloc_bss(8);
