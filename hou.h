@@ -209,6 +209,7 @@ Subst *bind(unsigned int, Type *);
 
 char *compile_expr(Expr, SContext *, char *);
 char *compile_body(EList *, SContext *, char *);
+char *compile_closure(Decl, char *, SContext *);
 void compile_decl(Decl, SContext *, char *);
 
 void assert(unsigned int);

@@ -2,7 +2,7 @@ section .text
 extern printf
 
 __print_int:
-	mov rsi, [rsp + 8]
+	mov rsi, r12 
 	push rsp
 	push rdi
 	push rsi

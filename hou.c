@@ -1676,8 +1676,9 @@ compile_expr(Expr e, SContext *ctx, char *reg)
                         compile_decl(p->decl, ctx, s);
                         ctx = add_sctx(ctx, p->decl.name, ++nvar);
                         char buf[256];
-                        sprintf(buf, "push QWORD [_%s]\n", s);
-                        add_arg(buf, nvar);
+                        if (nvar)
+                                sprintf(buf, "push QWORD [_%s]\n", s);
+                        else fprintf(out, "mov r12, [_%s]\n", s);
                         p = p->next;
                         ++length;
                 } char *ret_reg = compile_body(e.letin.expr, ctx, reg);
@@ -1698,15 +1699,18 @@ compile_expr(Expr e, SContext *ctx, char *reg)
                         if (local_used[i]) push(registers[i]);
                 compile_expr(*e.fun_call.fun, ctx, "rax");
                 EList *p = e.fun_call.args;
-                while (p) {
-                        char *arg = compile_expr(p->expr, ctx, NULL);
-                        add_arg(arg, length);
-                        free_reg(arg);
+                if (p) {
                         p = p->next;
-                        ++length;
-                } fprintf(out, "call [rax]\n");
-                if (length - 1 > 0)
-                        fprintf(out, "add rsp, %d\n", (length - 1) << 3);
+                        while (p) {
+                                char *arg = compile_expr(p->expr, ctx, NULL);
+                                push(arg);
+                                free_reg(arg);
+                                p = p->next;
+                                ++length;
+                        } compile_expr(e.fun_call.args->expr, ctx, "r12");
+                        fprintf(out, "call [rax]\n");
+                } if (length > 0)
+                          fprintf(out, "add rsp, %d\n", length << 3);
                 nvar -= length;
                 char *ret_reg = reg ? reg : registers[alloc_reg()];
                 for (int i = NREG - 1; i >= 0; --i)
@@ -1798,10 +1802,12 @@ compile_closure(Decl d, char *reg, SContext *ctx)
                 while (p->next) p = p->next;
                 p->next = tctx;
         } else ctx = tctx;
-        for (unsigned int i = 1; i <= nvar; ++i)
+        p = ctx;
+        for (unsigned int i = 1; i < nvar; ++i)
                 fprintf(out, "mov rdi, QWORD [rsp + %d]\n"
                         "mov QWORD [%s + %d], rdi\n",
                         i << 3, scratch_reg, i << 3);
+        fprintf(out, "mov [%s + %d], r12\n", scratch_reg, nvar << 3);
         fprintf(out, "pop rdi\n"
                 "jmp %s\n"
                 "%s:\n", aft_label, label);
