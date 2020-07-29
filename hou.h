@@ -188,7 +188,7 @@ Context *add_ctx(Context *, char *, Scheme);
 Scheme gen(Type *);
 
 Type *tfun(Type *, Type *);
-Type *tint();
+Type *tpar(Type *, Type *);
 Type *tvar(unsigned int);
 Type *tlit();
 
