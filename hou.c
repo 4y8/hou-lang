@@ -1673,15 +1673,22 @@ compile_expr(Expr e, SContext *ctx, char *reg)
                         *nf_table = (BSSTable){.name = s, .size = 8,
                                                .next = f_table};
                         f_table = nf_table;
-                        compile_decl(p->decl, ctx, s);
-                        ctx = add_sctx(ctx, p->decl.name, ++nvar);
                         char buf[256];
+                        if (p->decl.type == VAR_DECL)
+                                compile_decl(p->decl, ctx, s);
+                        else {
+                                sprintf(buf, "[_%s]", s);
+                                compile_closure(p->decl, buf, ctx);
+                        } ctx = add_sctx(ctx, p->decl.name, ++nvar);
                         if (nvar)
-                                sprintf(buf, "push QWORD [_%s]\n", s);
-                        else fprintf(out, "mov r12, [_%s]\n", s);
+                                fprintf(out, "push QWORD [_%s]\n", s);
+                        else
+                                fprintf(out, "sub rsp, 8\n"
+                                        "mov r12, [_%s]\n", s);
                         p = p->next;
                         ++length;
-                } char *ret_reg = compile_body(e.letin.expr, ctx, reg);
+                }
+                char *ret_reg = compile_body(e.letin.expr, ctx, reg);
                 fprintf(out, "add rsp, %d\n", length << 3);
                 nvar -= length;
                 while (f_table) {
@@ -1818,9 +1825,10 @@ compile_closure(Decl d, char *reg, SContext *ctx)
                 fprintf(out, "push QWORD [rax + %d]\n", i << 3);
                 ++nvar;
         } for (int i = 0; i < clen; ++i) {
-                p->num += nvar - old_nvar + 1;
+                p->num += nvar - old_nvar + 2;
                 p = p->next;
-        } compile_body(d.fun_decl.body, ctx, "rax");
+        } ++nvar;
+        compile_body(d.fun_decl.body, ctx, "rax");
         if (old_nvar)
                 fprintf(out, "add rsp, %d\n", old_nvar << 3);
         fprintf(out, "ret\n");
@@ -1833,7 +1841,7 @@ compile_closure(Decl d, char *reg, SContext *ctx)
         p->next = NULL;
         p = ctx;
         while (p) {
-                p->num -= nvar - old_nvar + 1;
+                p->num -= nvar - old_nvar + 2;
                 p = p->next;
         } nvar = save_nvar;
         return ret_reg;
