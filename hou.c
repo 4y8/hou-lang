@@ -1752,7 +1752,7 @@ compile_expr(Expr e, SContext *ctx, char *reg)
                 return ret_reg;
         }
         case LAM:
-                return compile_closure(*e.lam);
+                return compile_closure(*e.lam, reg, ctx);
         } return "";
 }
 
@@ -1764,7 +1764,8 @@ compile_closure(Decl d, char *reg, SContext *ctx)
         char *scratch_reg;
         char label[64];
         char aft_label[64];
-        unsigned int length;
+        unsigned int len;
+        unsigned int clen;
         EList *ap;
         SContext *p;
         SContext *tctx;
@@ -1781,14 +1782,22 @@ compile_closure(Decl d, char *reg, SContext *ctx)
         mov(scratch_reg, "rax");
         fprintf(out, "pop rax\n"
                 "mov QWORD [%s], %s\n", scratch_reg, label);
-        length = 1;
+        len = 1;
         ap = d.fun_decl.args;
         p = ctx;
+        clen = 0;
+        length(p, clen);
+        p = ctx;
+        tctx = NULL;
         while (ap) {
-                ctx = add_sctx(ctx, ap->expr.var, ++nvar);
-                ++length;
+                tctx = add_sctx(tctx, ap->expr.var, ++nvar);
+                ++len;
                 ap = ap->next;
         } fprintf(out, "push rdi\n");
+        if (p) {
+                while (p->next) p = p->next;
+                p->next = tctx;
+        } else ctx = tctx;
         for (unsigned int i = 1; i <= nvar; ++i)
                 fprintf(out, "mov rdi, QWORD [rsp + %d]\n"
                         "mov QWORD [%s + %d], rdi\n",
@@ -1797,10 +1806,11 @@ compile_closure(Decl d, char *reg, SContext *ctx)
                 "jmp %s\n"
                 "%s:\n", aft_label, label);
         old_nvar = nvar;
+        p = ctx;
         for (unsigned int i = nvar; i > 0; --i) {
                 fprintf(out, "push QWORD [rax + %d]\n", i << 3);
                 ++nvar;
-        } while (p) {
+        } for (int i = clen; i; --i) {
                 p->num += nvar - old_nvar + 1;
                 p = p->next;
         } compile_body(d.fun_decl.body, ctx, "rax");
@@ -1810,6 +1820,9 @@ compile_closure(Decl d, char *reg, SContext *ctx)
         fprintf(out, "%s:\n", aft_label);
         mov(ret_reg, scratch_reg);
         free_reg(scratch_reg);
+        p = ctx;
+        for (int i = clen; i; --i) p = p->next;
+        p->next = NULL;
         p = ctx;
         while (p) {
                 p->num -= nvar - old_nvar + 1;
