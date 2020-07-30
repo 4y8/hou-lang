@@ -11,16 +11,16 @@
         }
 
 
-#define NKEYWORD 7
+#define NKEYWORD 11
 #define NPUNCT   15
 
 unsigned int linum;
 unsigned int cpos;
-int nvar = -1;
 
 KeywordToken keywords[NKEYWORD] = {
         {LET, "let"}, {IN, "in"}, {IF, "if"}, {ELIF, "elif"}, {ELSE, "else"},
-        {EXTERN, "extern"}, {TYPE, "type"}
+        {EXTERN, "extern"}, {TYPE, "type"}, {INFIXL, "infixl"}, {CASE, "case"},
+        {INFIXR, "infixr"}, {OF, "of"}
 };
 
 PuncToken punctuation[NPUNCT] = {
@@ -81,12 +81,16 @@ punct_to_token(char c)
         return -1;
 }
 
+FILE *in;
 
 void
 error(char *msg, int linum, int cpos, Error err_code)
 {
         char *err_header;
         int  header_size;
+        int scpos;
+        int c;
+        int wsize;
 
         switch(err_code) {
         case UNEXPECTED_CHAR:
@@ -104,10 +108,33 @@ error(char *msg, int linum, int cpos, Error err_code)
                 err_header = safe_malloc(header_size);
                 strncpy(err_header, "SYNTAX ERROR ", header_size);
                 break;
-        } printf("\033[35m\033[1m-- ");
+        }
+        /* Prints the header. */
+        printf("\033[35m\033[1m-- ");
         printf("%s", err_header);
         for (int i = 0; i < 77 - header_size; i++) printf("-");
-        printf("\n\n\033[39m\033[1m%d:%d: %s\n", linum, cpos, msg);
+        printf("\n\n\033[31m\033[1m%d:%d: \033[0m%s:\n", linum, cpos, msg);
+        /* Prints the line of the error. */
+        fseek(in, 0L, SEEK_SET);
+        printf("\033[39m\033[0m");
+        scpos = cpos;
+        while (linum - 1) if (fgetc(in) == '\n') --linum;
+        printf(" | ");
+        while (--cpos) printf("%c", fgetc(in));
+        printf("\033[31m");
+        wsize = 0;
+        while ((c = fgetc(in)) != ' ' && c != '(' && c != ')') {
+                printf("%c", c);
+                ++wsize;
+        } printf("\033[0m");
+        do printf("%c", c);
+        while ((c = fgetc(in)) != '\n' && c != EOF);
+        /* Underline the error. */
+        printf("\n   ");
+        while (--scpos) printf(" ");
+        printf("\033[31m");
+        while (--wsize + 1) printf("^");
+        printf("\n");
         free_all();
         exit(1);
 }
@@ -142,7 +169,6 @@ token_num(int num)
 
 int unsused_char = EOF;
 int act_char = EOF;
-FILE *in;
 
 char
 next_char()
@@ -193,12 +219,21 @@ lexer()
 
         if (used_char() == EOF) return token(END);
         if (isalpha(used_char())) {
-                char *str = lex_while(iside);
-                int i = keyword_to_token(str);
+                int scpos  = cpos;
+                char *str  = lex_while(iside);
+                int i      = keyword_to_token(str);
+                int sncpos = cpos;
+                cpos = scpos - 1;
                 if (i == -1) tok = token_str(str);
                 else tok = token(i);
+                cpos = sncpos;
         } else if (isdigit(used_char())) {
-                tok = token_num(atoi(lex_while(isdigit)));
+                int scpos  = cpos;
+                int sncpos = cpos;
+                char *str  = lex_while(isdigit);
+                cpos = scpos - 1;
+                tok = token_num(atoi(str));
+                cpos = sncpos;
         } else {
                 int i = punct_to_token(used_char());
                 if (i != -1) tok = token(i);
@@ -281,8 +316,6 @@ parse_expr()
 
         tok   = next_token();
         expr  = safe_malloc(sizeof(Expr));
-        *expr = (Expr){.linum = tok.linum, .cpos = tok.cpos,
-                       .abspos = tok.abspos};
         switch (tok.type) {
         case IDE:
                 *expr = (Expr){.type = VAR, .var = tok.str};
@@ -328,7 +361,10 @@ parse_expr()
                 error("Unexpected token.", tok.linum, tok.cpos,
                       SYNTAX_ERROR);
                 break;
-        } return expr;
+        }
+        expr->linum = tok.linum;
+        expr->cpos  = tok.cpos;
+        return expr;
 }
 
 EList *
@@ -382,7 +418,7 @@ parse_fun()
         Expr *e;
 
         e = parse_expr();
-        while(peek(LPARENT)) {
+        while (peek(LPARENT)) {
                 Expr *expr = malloc(sizeof(Expr));
                 EList args;
                 EList *p;
@@ -395,8 +431,10 @@ parse_fun()
                         else unused_tok = token(RPARENT);
                 } p->next = NULL;
                 *expr = (Expr){.type = FUN_CALL, .fun_call.fun = e,
-                               .fun_call.args = args.next};
-                e = expr;
+                               .fun_call.args = args.next,
+                               .linum = act_token().linum,
+                               .cpos = act_token().cpos
+                }; e = expr;
         } return e;
 }
 
@@ -407,7 +445,9 @@ binop(Expr *left, Expr *right, unsigned int op)
 
         e = safe_malloc(sizeof(Expr));
         *e = (Expr){.type = BINOP, .binop.op = op, .binop.left = left,
-                    .binop.right = right};
+                    .binop.right = right, .linum = act_token().linum,
+                    .cpos = act_token().cpos
+        };
         return e;
 }
 
@@ -716,6 +756,8 @@ parse_program()
         return decls.next;
 }
 
+int nvar = -1;
+
 Ilist*
 ftv(Type *t)
 {
@@ -881,7 +923,7 @@ unify(Type *t1, Type *t2)
                 Subst *s2 = unify(app_subst(t1->fun.right, s1),
                                   app_subst(t2->fun.right, s1));
                 s = compose_subst(s1, s2);
-        } else error("Can't unify types", 0, 0, TYPE_ERROR);
+        } else error("Can't unify types", cpos, linum, TYPE_ERROR);
         return s;
 }
 
@@ -892,8 +934,7 @@ find_ctx(char *name, Context *ctx)
         while (ctx) {
                 if (!strcmp(name, ctx->name)) return ctx->sch;
                 ctx = ctx->next;
-        } error("Unknown variable", 0, 0, TYPE_ERROR);
-        exit(1);
+        } error("Unknown variable", linum, cpos, TYPE_ERROR);
 }
 
 void
@@ -949,6 +990,8 @@ infer(Expr expr, Context *ctx)
 {
         TypeReturn tp;
 
+        linum    = expr.linum;
+        cpos     = expr.cpos;
         tp.subst = NULL;
         switch (expr.type) {
         case INT:
@@ -1183,8 +1226,10 @@ print_token(Token t)
         switch(t.type) {
         case IN:      printf("in");                    break;
         case IF:      printf("if");                    break;
+        case OF:      printf("of");                    break;
         case LET:     printf("let");                   break;
         case ELSE:    printf("else");                  break;
+        case CASE:    printf("case");                  break;
         case ELIF:    printf("elif");                  break;
         case TYPE:    printf("type");                  break;
         case EXTERN:  printf("extern");                break;
@@ -1511,11 +1556,11 @@ is_cmp(unsigned int op)
 {
 
         switch (op) {
-        case OP_LOW:
-        case OP_LOWE:
-        case OP_EQUAL:
-        case OP_GREAT:
-        case OP_GREATE:
+        case OP_LOW:    /* FALLTHROUGH */
+        case OP_LOWE:   /* FALLTHROUGH */
+        case OP_EQUAL:  /* FALLTHROUGH */
+        case OP_GREAT:  /* FALLTHROUGH */
+        case OP_GREATE: /* FALLTHROUGH */
         case OP_NEQUAL: return 1;
         default: return  0;
         }
