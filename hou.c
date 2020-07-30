@@ -83,15 +83,27 @@ punct_to_token(char c)
 
 FILE *in;
 
+char *
+itoa(int i)
+{
+        char *str;
+
+        str = safe_malloc(256);
+        sprintf(str, "%d", i);
+        return str;
+}
+
 void
 error(char *msg, int linum, int cpos, Error err_code)
 {
         char *err_header;
-        int  header_size;
+        int header_size;
+        int slinum;
         int scpos;
-        int c;
         int wsize;
+        int c;
 
+        slinum = linum;
         switch(err_code) {
         case UNEXPECTED_CHAR:
                 header_size = 21;
@@ -119,7 +131,7 @@ error(char *msg, int linum, int cpos, Error err_code)
         printf("\033[39m\033[0m");
         scpos = cpos;
         while (linum - 1) if (fgetc(in) == '\n') --linum;
-        printf(" | ");
+        printf("   %s | ", itoa(slinum));
         while (--cpos) printf("%c", fgetc(in));
         printf("\033[31m");
         wsize = 0;
@@ -130,7 +142,8 @@ error(char *msg, int linum, int cpos, Error err_code)
         do printf("%c", c);
         while ((c = fgetc(in)) != '\n' && c != EOF);
         /* Underline the error. */
-        printf("\n   ");
+        printf("\n      ");
+        for (int i = 0; i < strlen(itoa(slinum)); ++i) printf(" ");
         while (--scpos) printf(" ");
         printf("\033[31m");
         while (--wsize + 1) printf("^");
@@ -1593,16 +1606,6 @@ add_arg(char *arg, int i)
 
         if (i) push(arg);
         else   mov("r12", arg);
-}
-
-char *
-itoa(int i)
-{
-        char *str;
-
-        str = safe_malloc(256);
-        sprintf(str, "%d", i);
-        return str;
 }
 
 char *
