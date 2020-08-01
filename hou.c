@@ -725,6 +725,29 @@ type_decls_to_decls(TDeclList *l, int length)
 
 Context *init_type_ctx = NULL;
 
+Type *
+build_type(EList *l, char *name)
+{
+
+        if (!l) return tlit(name);
+        else return tfun(tlit(l->expr.var), build_type(l->next, name));
+}
+
+void
+type_decls_to_ctx(TDeclList *t, int len, Ilist *bind)
+{
+        TDeclList *p;
+
+        p = t;
+        while (p) {
+                Scheme sch;
+                sch.bind = bind;
+                sch.type = build_type(p->t.args, p->t.name);
+                init_type_ctx = add_ctx(init_type_ctx, p->t.name, sch);
+                p = p->next;
+        }
+}
+
 DeclList *
 parse_top_level()
 {
@@ -767,6 +790,7 @@ parse_top_level()
                 p = t.next;
                 int len = 0;
                 length(p, len);
+                type_decls_to_ctx(t.next, len, NULL);
                 return type_decls_to_decls(t.next, len);
         } else error("Unexpected token.", act_token().linum,
                      act_token().cpos, SYNTAX_ERROR);
