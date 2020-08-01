@@ -107,6 +107,7 @@ error(char *msg, int linum, int cpos, Error err_code)
         int c;
 
         slinum = linum;
+        scpos  = cpos;
         switch(err_code) {
         case UNEXPECTED_CHAR:
                 header_size = 21;
@@ -132,7 +133,6 @@ error(char *msg, int linum, int cpos, Error err_code)
         /* Prints the line of the error. */
         fseek(in, 0L, SEEK_SET);
         printf("\033[39m\033[0m");
-        scpos = cpos;
         while (linum - 1) if (fgetc(in) == '\n') --linum;
         printf("   %s | ", itoa(slinum));
         while (--cpos) printf("%c", fgetc(in));
@@ -145,12 +145,14 @@ error(char *msg, int linum, int cpos, Error err_code)
         do printf("%c", c);
         while ((c = fgetc(in)) != '\n' && c != EOF);
         /* Underline the error. */
-        printf("\n      ");
+        printf("\n");
         for (int i = 0; i < strlen(itoa(slinum)); ++i) printf(" ");
+        printf("    | ");
         while (--scpos) printf(" ");
         printf("\033[31m");
-        while (--wsize + 1) printf("^");
-        printf("\n");
+        printf("^");
+        while (--wsize) printf("~");
+        printf("\n\033\[0m");
         free_all();
         exit(1);
 }
@@ -2031,8 +2033,9 @@ program(char *prog)
         next_char();
         linum = 1;
         cpos  = 1;
-        add_type("Unit");
+        /* Add built-in types to the type context. */
         add_type("Int");
+        add_type("Unit");
         add_type("Bool");
         decl  = parse_program();
         infer_decls(decl, init_ctx);
