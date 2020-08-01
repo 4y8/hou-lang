@@ -160,6 +160,9 @@ char *itoa(int);
 int punct_to_token(char);
 int keyword_to_token(char *);
 
+int   is_ide(int);
+char *lex_while(int (*)(int));
+
 Token token(unsigned int);
 Token token_str(char *);
 Token token_num(int);
@@ -174,14 +177,27 @@ int peek(unsigned int);
 
 Expr     *parse_expr();
 Expr     *parse_op(Expr *(*)(), OpTable *, int);
+Expr     *parse_rel();
 Expr     *parse_add();
 Expr     *parse_mul();
-Expr     *parse_rel();
+Expr     *parse_fun();
 EList    *parse_else();
 EList    *parse_arg(unsigned int);
 EList    *parse_body();
 DeclList *parse_top_level();
 DeclList *parse_program();
+
+int       is_type(char *);
+void      add_type(char *);
+char     *extract_type_name();
+Type     *parse_type();
+Expr     *make_underscore();
+EList    *append(EList *, EList *);
+EList    *make_dummy_vars(int);
+EList    *make_underscore_app(EList *);
+EList    *make_underscore_l();
+TypeDecl  parse_type_decl();
+DeclList *type_decls_to_decls(TDeclList *, int);
 
 int    occurs(Ilist *, int);
 Ilist *ftv(Type *);
@@ -224,5 +240,8 @@ void print_elist(EList *, int);
 void print_decl(Decl, int);
 void print_decllist(DeclList *, int);
 void print_type(Type);
+
+DeclList *parse_program();
+void      program(char *);
 
 #endif // __HOU_H_
