@@ -1474,8 +1474,6 @@ char *registers[NREG] = {
 };
 
 BSSTable *bss_table;
-BSSTable *bss_table;
-BSSTable *free_bss_table;
 
 int ndecl = -1;
 
@@ -1493,22 +1491,10 @@ add_bss(char *name, int size)
                 if (!strcmp(name, p->name)) return;
                 p = p->next;
         } nbss_table = safe_malloc(sizeof(BSSTable));
-        nbss_table->name = safe_malloc(64);
+        *nbss_table = (BSSTable) {.name = safe_malloc(64), .size = size,
+                                  .next = bss_table};
         strncpy(nbss_table->name, name, 64);
-        nbss_table->size = size;
-        nbss_table->next = bss_table;
         bss_table = nbss_table;
-}
-
-void
-free_bss(char *name, int size)
-{
-        BSSTable *nf_table;
-
-        nf_table = safe_malloc(sizeof(BSSTable));
-        *nf_table = (BSSTable){.size = size, .name = name,
-                               .next = free_bss_table};
-        free_bss_table = nf_table;
 }
 
 char *
@@ -1516,11 +1502,7 @@ alloc_bss(int size)
 {
         char *name;
 
-        if (free_bss_table && free_bss_table->size == size) {
-                name = free_bss_table->name;
-                free_bss_table = free_bss_table->next;
-                return name;
-        } name = safe_malloc(256);
+        name = safe_malloc(256);
         sprintf(name, "_bss_%d", ++ndecl);
         add_bss(name, size);
         return name;
@@ -1685,12 +1667,27 @@ compile_math(char *regl, char *regr, unsigned int op)
         }
 }
 
-void
-compile_op(char *regl, char *regr, unsigned int op)
+char *
+compile_op(Expr expr, char *reg, SContext *ctx, int ismod)
 {
+        Expr lexpr;
+        Expr rexpr;
+        unsigned int op;
+        char *regl;
+        char *regr;
 
-        if (is_cmp(op)) cmp_e(regl, regr, op_to_suffix(op));
-        else            compile_math(regl, regr, op);
+        op    = expr.binop.op;
+        lexpr = *expr.binop.left;
+        rexpr = *expr.binop.right;
+        regr  = compile_expr(rexpr, ctx, NULL, 0);
+        if (is_cmp(op)) {
+                regl = compile_expr(lexpr, ctx, reg, ismod);
+                cmp_e(regl, regr, op_to_suffix(op));
+        } else {
+                regl = compile_expr(lexpr, ctx, reg, 1);
+                compile_math(regl, regr, op);
+        } free_reg(regr);
+        return regl;
 }
 
 void
@@ -1702,7 +1699,7 @@ add_arg(char *arg, int i)
 }
 
 char *
-compile_expr(Expr e, SContext *ctx, char *reg)
+compile_expr(Expr e, SContext *ctx, char *reg, int ismod)
 {
 
         switch (e.type) {
@@ -1723,9 +1720,9 @@ compile_expr(Expr e, SContext *ctx, char *reg)
                                 switch (op) {
                                 case OP_PLUS: /* FALLTHROUGH */
                                 case OP_MINUS:
-                                        return compile_expr(lexpr, ctx, reg);
+                                        return compile_expr(lexpr, ctx, reg, ismod);
                                 case OP_TIMES:
-                                        return compile_expr(rexpr, ctx, reg);
+                                        return compile_expr(rexpr, ctx, reg, ismod);
                                 case OP_DIVISE:
                                         error("Division by zero.", e.linum, e.cpos,
                                               SYNTAX_ERROR);
@@ -1734,38 +1731,38 @@ compile_expr(Expr e, SContext *ctx, char *reg)
                         else if (num == 1)
                                 switch (op) {
                                 case OP_PLUS: {
-                                        char *regl = compile_expr(lexpr, ctx, reg);
+                                        char *regl = compile_expr(lexpr, ctx, reg, 1);
                                         fprintf(out, "inc %s\n", regl);
                                         return regl;
                                 }
                                 case OP_MINUS: {
-                                        char *regl = compile_expr(lexpr, ctx, reg);
+                                        char *regl = compile_expr(lexpr, ctx, reg, 1);
                                         fprintf(out, "dec %s\n", regl);
                                         return regl;
                                 }
                                 case OP_TIMES: /* FALLTHROUGH */
                                 case OP_DIVISE:
-                                        return compile_expr(lexpr, ctx, reg);
+                                        return compile_expr(lexpr, ctx, reg, ismod);
                                 default: break;
                                 }
                         int n = is_power_of2(num);
                         if (n != -1) {
                                 if (op == OP_TIMES) {
-                                        char *ret = compile_expr(lexpr, ctx, reg);
+                                        char *ret = compile_expr(lexpr, ctx, reg, 1);
                                         fprintf(out, "shl %s, %d\n", ret, n);
                                         return ret;
                                 } if (op == OP_DIVISE) {
-                                        char *ret = compile_expr(lexpr, ctx, reg);
+                                        char *ret = compile_expr(lexpr, ctx, reg, 1);
                                         fprintf(out, "shr %s, %d\n", ret, n);
                                         return ret;
                                 } if (op == OP_MOD) {
-                                        char *ret = compile_expr(lexpr, ctx, reg);
+                                        char *ret = compile_expr(lexpr, ctx, reg, 1);
                                         fprintf(out, "and %s, %d\n", ret, num - 1);
                                         return ret;
                                 }
                         } if (op != OP_MOD && op != OP_DIVISE) {
-                                char *regl = compile_expr(lexpr, ctx, reg);
-                                compile_op(regl, itoa(rexpr.num), op);
+                                char *regl = compile_expr(lexpr, ctx, reg, 1);
+                                compile_math(regl, itoa(rexpr.num), op);
                                 return regl;
                         }
                 } if (lexpr.type == INT) {
@@ -1773,40 +1770,33 @@ compile_expr(Expr e, SContext *ctx, char *reg)
                         if (num == 0)
                                 switch (op) {
                                 case OP_PLUS:
-                                        return compile_expr(rexpr, ctx, reg);
+                                        return compile_expr(rexpr, ctx, reg, 0);
                                 case OP_DIVISE: /* FALLTHROUGH */
                                 case OP_TIMES:
-                                        return compile_expr(lexpr, ctx, reg);
+                                        return compile_expr(lexpr, ctx, reg, ismod);
                                 default: break;
                                 }
                         int n = is_power_of2(num);
                         if (n != -1 && op == OP_TIMES) {
-                                char *ret = compile_expr(rexpr, ctx, reg);
+                                char *ret = compile_expr(rexpr, ctx, reg, 1);
                                 fprintf(out, "shl %s, %d\n", ret, n);
                                 return ret;
                         } if (op != OP_MOD && op != OP_DIVISE) {
-                                char *regr = compile_expr(rexpr, ctx, reg);
-                                compile_op(regr, itoa(lexpr.num), op);
+                                char *regr = compile_expr(rexpr, ctx, reg, 1);
+                                compile_math(regr, itoa(lexpr.num), op);
                                 return regr;
                         }
-                } char *regl = compile_expr(lexpr, ctx, reg);
-                char *regr = compile_expr(rexpr, ctx, NULL);
-                compile_op(regl, regr, op);
-                free_reg(regr);
-                return regl;
+                } return compile_op(e, reg, ctx, ismod);
         }
         case VAR: {
                 char *ret_reg = reg ? reg : registers[alloc_reg()];
                 while (ctx) {
                         if (!strcmp(e.var, ctx->name)) {
                                 if (!ctx->next) {
-                                        if (reg) {
-                                                mov(reg, "r12");
-                                                return reg;
-                                        } else {
-                                                free_reg(ret_reg);
-                                                return "r12";
-                                        }
+                                        if (ismod || reg) {
+                                                mov(ret_reg, "r12");
+                                                return ret_reg;
+                                        } else return "r12";
                                 } fprintf(out, "mov %s, [rsp + %d]\n",
                                           ret_reg, (nvar - ctx->num) * 8);
                                 return ret_reg;
@@ -1817,17 +1807,17 @@ compile_expr(Expr e, SContext *ctx, char *reg)
         case LETIN: {
                 DeclList *p = e.letin.decl;
                 BSSTable *f_table = NULL;
-                int length = 0;
+                int len = 0;
                 while (p) {
                         char *s = alloc_bss(8);
                         BSSTable *nf_table = safe_malloc(sizeof(BSSTable));
                         *nf_table =
                                 (BSSTable){.name = s, .size = 8, .next = f_table};
                         f_table = nf_table;
-                        char buf[256];
                         if (p->decl.type == VAR_DECL)
                                 compile_decl(p->decl, ctx, s);
                         else {
+                                char buf[256];
                                 sprintf(buf, "[_%s]", s);
                                 compile_closure(p->decl, buf, ctx);
                         } ctx = add_sctx(ctx, p->decl.name, ++nvar);
@@ -1837,15 +1827,11 @@ compile_expr(Expr e, SContext *ctx, char *reg)
                                 fprintf(out, "sub rsp, 8\n"
                                         "mov r12, [_%s]\n", s);
                         p = p->next;
-                        ++length;
-                }
-                char *ret_reg = compile_body(e.letin.expr, ctx, reg);
-                fprintf(out, "add rsp, %d\n", length << 3);
-                nvar -= length;
-                while (f_table) {
-                        free_bss(f_table->name, f_table->size);
-                        f_table = f_table->next;
-                } return ret_reg;
+                        ++len;
+                } char *ret_reg = compile_body(e.letin.expr, ctx, reg);
+                fprintf(out, "add rsp, %d\n", len << 3);
+                nvar -= len;
+                return ret_reg;
         }
         case FUN_CALL: {
                 int length = 0;
@@ -1855,17 +1841,17 @@ compile_expr(Expr e, SContext *ctx, char *reg)
                 memcpy(local_used, used_registers, NREG * sizeof(int));
                 for (int i = 0; i < NREG; ++i)
                         if (local_used[i]) push(registers[i]);
-                compile_expr(*e.fun_call.fun, ctx, "rax");
+                compile_expr(*e.fun_call.fun, ctx, "rax", 0);
                 EList *p = e.fun_call.args;
                 if (p) {
                         p = p->next;
                         while (p) {
-                                char *arg = compile_expr(p->expr, ctx, NULL);
+                                char *arg = compile_expr(p->expr, ctx, NULL, 0);
                                 push(arg);
                                 free_reg(arg);
                                 p = p->next;
                                 ++length;
-                        } compile_expr(e.fun_call.args->expr, ctx, "r12");
+                        } compile_expr(e.fun_call.args->expr, ctx, "r12", 0);
                 } fprintf(out, "call [rax]\n");
                 if (length > 0) fprintf(out, "add rsp, %d\n", length << 3);
                 nvar -= length;
@@ -1884,15 +1870,15 @@ compile_expr(Expr e, SContext *ctx, char *reg)
                 if (e.if_clause.condition->type == BINOP) {
                         Expr lexpr = *e.if_clause.condition->binop.left;
                         Expr rexpr = *e.if_clause.condition->binop.right;
-                        char *regr = compile_expr(rexpr, ctx, NULL);
-                        char *regl = compile_expr(lexpr, ctx, NULL);
+                        char *regr = compile_expr(rexpr, ctx, NULL, 0);
+                        char *regl = compile_expr(lexpr, ctx, NULL, 0);
                         fprintf(out,
                                 "cmp %s, %s\n"
                                 "j%s %s\n", regl, regr,
                                 op_to_nsuffix(e.if_clause.condition->binop.op),
                                 label_else);
                 } else {
-                        char *scratch_reg = compile_expr(*e.if_clause.condition, ctx, NULL);
+                        char *scratch_reg = compile_expr(*e.if_clause.condition, ctx, NULL, 0);
                         fprintf(out, "cmp %s, 1\n"
                                 "jne %s\n",
                                 scratch_reg, label_else);
@@ -1997,7 +1983,7 @@ compile_body(EList *body, SContext *ctx, char *reg)
         char *s;
 
         while (body) {
-                s = compile_expr(body->expr, ctx, reg);
+                s = compile_expr(body->expr, ctx, reg, 0);
                 if (body->next) free_reg(s);
                 body = body->next;
         } return s;
