@@ -1297,8 +1297,7 @@ op_to_char(unsigned int op)
         case OP_DIVISE: return "/";
         case OP_GREATE: return ">=";
         case OP_NEQUAL: return "!=";
-        }
-        return "";
+        } return ""; /* Can't happend but avoid warnings. */
 }
 
 void
@@ -1679,12 +1678,13 @@ compile_op(Expr expr, char *reg, SContext *ctx, int ismod)
         op    = expr.binop.op;
         lexpr = *expr.binop.left;
         rexpr = *expr.binop.right;
-        regr  = compile_expr(rexpr, ctx, NULL, 0);
         if (is_cmp(op)) {
                 regl = compile_expr(lexpr, ctx, reg, ismod);
+                regr = compile_expr(rexpr, ctx, NULL, 0);
                 cmp_e(regl, regr, op_to_suffix(op));
         } else {
                 regl = compile_expr(lexpr, ctx, reg, 1);
+                regr = compile_expr(rexpr, ctx, NULL, 0);
                 compile_math(regl, regr, op);
         } free_reg(regr);
         return regl;
@@ -1796,7 +1796,10 @@ compile_expr(Expr e, SContext *ctx, char *reg, int ismod)
                                         if (ismod || reg) {
                                                 mov(ret_reg, "r12");
                                                 return ret_reg;
-                                        } else return "r12";
+                                        } else {
+                                                free_reg(ret_reg);
+                                                return "r12";
+                                        }
                                 } fprintf(out, "mov %s, [rsp + %d]\n",
                                           ret_reg, (nvar - ctx->num) * 8);
                                 return ret_reg;
@@ -1965,14 +1968,15 @@ compile_closure(Decl d, char *reg, SContext *ctx)
         fprintf(out, "%s:\n", aft_label);
         mov(ret_reg, scratch_reg);
         free_reg(scratch_reg);
-        p = ctx;
-        if (clen) {
+        if (clen && ctx) {
+                p = ctx;
                 for (int i = 0; i < clen - 1; ++i) p = p->next;
-        } if (p) p->next = NULL;
-        p = ctx;
-        while (p) {
-                p->num -= nvar - old_nvar + 2;
-                p = p->next;
+                p->next = NULL;
+                p = ctx;
+                while (p) {
+                        p->num -= nvar - old_nvar + 2;
+                        p = p->next;
+                }
         } nvar = save_nvar;
         return ret_reg;
 }
