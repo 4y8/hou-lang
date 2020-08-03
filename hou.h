@@ -123,7 +123,7 @@ typedef struct subst {
 typedef struct ilist {
         unsigned int i;
         struct ilist *next;
-} Ilist;
+} IList;
 
 typedef struct {
         struct ilist *bind;
@@ -204,9 +204,9 @@ EList    *make_underscore_l();
 TypeDecl  parse_type_decl();
 DeclList *type_decls_to_decls(TDeclList *, int);
 
-int    occurs(Ilist *, int);
-Ilist *ftv(Type *);
-Ilist *ftv_sch(Scheme);
+int    occurs(IList *, int);
+IList *ftv(Type *);
+IList *ftv_sch(Scheme);
 
 Scheme   gen(Type *);
 Context *add_ctx(Context *, char *, Scheme);
