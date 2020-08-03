@@ -109,6 +109,11 @@ typedef struct slist {
         struct slist *next;
 } SList;
 
+typedef struct plist {
+        void *p;
+        struct plist *next;
+} PList;
+
 typedef struct subst {
         unsigned int  nvar;
         Type         *t;
