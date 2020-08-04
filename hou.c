@@ -16,7 +16,7 @@
 
 unsigned int linum;
 unsigned int cpos;
-unsigned int nvar = 0;
+int nvar = -1;
 
 KeywordToken keywords[NKEYWORD] = {
         {LET, "let"}, {IN, "in"}, {IF, "if"}, {ELIF, "elif"}, {ELSE, "else"},
@@ -1715,8 +1715,8 @@ compile_expr(Expr e, SContext *ctx, char *reg)
                                 p = p->next;
                                 ++length;
                         } compile_expr(e.fun_call.args->expr, ctx, "r12");
-                        fprintf(out, "call [rax]\n");
-                } if (length > 0)
+                } fprintf(out, "call [rax]\n");
+                if (length > 0)
                           fprintf(out, "add rsp, %d\n", length << 3);
                 nvar -= length;
                 char *ret_reg = reg ? reg : registers[alloc_reg()];
@@ -1780,7 +1780,7 @@ compile_closure(Decl d, char *reg, SContext *ctx)
         EList *ap;
         SContext *p;
         SContext *tctx;
-        unsigned int old_nvar;
+        int old_nvar;
 
         scratch_reg = registers[alloc_reg()];
         ret_reg = reg ? reg : registers[alloc_reg()];
@@ -1810,35 +1810,39 @@ compile_closure(Decl d, char *reg, SContext *ctx)
                 p->next = tctx;
         } else ctx = tctx;
         p = ctx;
-        for (unsigned int i = 1; i < nvar; ++i)
-                fprintf(out, "mov rdi, QWORD [rsp + %d]\n"
-                        "mov QWORD [%s + %d], rdi\n",
-                        i << 3, scratch_reg, i << 3);
-        if (nvar)
+        if (nvar > 0) {
+                for (int i = 1; i < nvar; ++i)
+                        fprintf(out, "mov rdi, QWORD [rsp + %d]\n"
+                                "mov QWORD [%s + %d], rdi\n",
+                                i << 3, scratch_reg, i << 3);
                 fprintf(out, "mov [%s + %d], r12\n", scratch_reg, nvar << 3);
-        fprintf(out, "pop rdi\n"
-                "jmp %s\n"
-                "%s:\n", aft_label, label);
+        } fprintf(out, "pop rdi\n"
+                  "jmp %s\n"
+                  "%s:\n", aft_label, label);
         old_nvar = nvar;
         p = ctx;
-        for (unsigned int i = nvar; i > 0; --i) {
-                fprintf(out, "push QWORD [rax + %d]\n", i << 3);
-                ++nvar;
-        } for (int i = 0; i < clen; ++i) {
+        if (nvar != -1)
+                for (unsigned int i = nvar; i > 0; --i) {
+                        fprintf(out, "push QWORD [rax + %d]\n", i << 3);
+                        ++nvar;
+                }
+        for (int i = 0; i < clen; ++i) {
                 p->num += nvar - old_nvar + 2;
                 p = p->next;
         } ++nvar;
         compile_body(d.fun_decl.body, ctx, "rax");
-        if (old_nvar)
+        if (old_nvar > 0)
                 fprintf(out, "add rsp, %d\n", old_nvar << 3);
         fprintf(out, "ret\n");
         fprintf(out, "%s:\n", aft_label);
         mov(ret_reg, scratch_reg);
         free_reg(scratch_reg);
         p = ctx;
-        if (clen)
+        if (clen) {
                 for (int i = 0; i < clen - 1; ++i) p = p->next;
-        p->next = NULL;
+        }
+        if (p)
+                p->next = NULL;
         p = ctx;
         while (p) {
                 p->num -= nvar - old_nvar + 2;
