@@ -371,7 +371,7 @@ parse_expr()
         case BACKS:
                 *expr = (Expr){.type = LAM, .lam = safe_malloc(sizeof(Decl))};
                 *expr->lam = (Decl){.type = FUN_DECL,
-                                    .name = "_",
+                                    .name = "",
                                     .fun_decl.args = parse_arg(ARR),
                                     .fun_decl.body = parse_body()};
                 break;
