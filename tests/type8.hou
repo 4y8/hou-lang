@@ -1,0 +1,3 @@
+type Peano = S(Peano) | Z
+
+main = Z(\x -> 5, 8)

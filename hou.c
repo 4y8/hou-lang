@@ -9,7 +9,6 @@
         l = l->next;                            \
         }
 
-
 #define NKEYWORD 11
 #define NPUNCT   15
 #define NTYPES   3
@@ -190,6 +189,7 @@ int act_char     = EOF;
 char
 next_char()
 {
+
         if (unsused_char != EOF) {
                 act_char = unsused_char;
                 unsused_char = EOF;
@@ -289,6 +289,7 @@ Token unused_tok;
 Token
 next_token()
 {
+
         if (unused_tok.type == END) return act_tok = lexer();
         else {
                 Token t = unused_tok;
@@ -300,6 +301,7 @@ next_token()
 Token
 act_token()
 {
+
         if (unused_tok.type == END) return act_tok;
         else return unused_tok;
 }
@@ -754,19 +756,58 @@ build_type(EList *l, char *name)
         else return tfun(tlit(l->expr.var), build_type(l->next, name));
 }
 
+Type *
+tfun_list(PList *p)
+{
+
+        if (p->next) {
+                return tfun(p->p, tfun_list(p->next));
+        } return p->p;
+}
+
+Type *
+app_reverse_subst(Type *t, Subst *s)
+{
+
+        if (t->type == TVAR) return t;
+        else if (t->type == TFUN)
+                return tfun(app_reverse_subst(t->fun.left, s),
+                            app_reverse_subst(t->fun.right, s));
+        else
+                while (s) {
+                        if (!strcmp(s->t->lit, t->lit)) return tvar(s->nvar);
+                        s = s->next;
+                }
+        return t;
+}
+
 void
 type_decls_to_ctx(TDeclList *t, int len, Ilist *bind, char *tname)
 {
         TDeclList *p;
+        PList *pp;
+        PList l;
+        Subst *s;
+        Type *ft;
 
-        p = t;
+        pp = &l;
+        p  = t;
         while (p) {
                 Scheme sch;
                 sch.bind = bind;
                 sch.type = build_type(p->t.args, tname);
+                pp->next = safe_malloc(sizeof(SList));
+                pp->next->p = build_type(p->t.args, "a");
+                pp = pp->next;
                 init_type_ctx = add_ctx(init_type_ctx, p->t.name, sch);
                 p = p->next;
-        }
+        } pp->next = safe_malloc(sizeof(PList));
+        pp = pp->next;
+        pp->p = tlit("a");
+        pp->next = NULL;
+        s = safe_malloc(sizeof(Subst));
+        *s = (Subst){.nvar = 0, .t = tlit("a"), .next = NULL};
+        ft = app_reverse_subst(tfun_list(l.next), s);
 }
 
 DeclList *
