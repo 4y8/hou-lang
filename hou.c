@@ -13,6 +13,7 @@
 
 #define NKEYWORD 11
 #define NPUNCT   15
+#define NTYPES   3
 
 unsigned int linum;
 unsigned int cpos;
@@ -31,6 +32,8 @@ PuncToken punctuation[NPUNCT] = {
 
 OpTable add_op[] = {{PLUS, OP_PLUS}, {MINUS, OP_MINUS}};
 OpTable mul_op[] = {{MOD, OP_MOD}, {TIMES, OP_TIMES}, {DIVISE, OP_DIVISE}};
+
+char *builtin_types[NTYPES] = {"Int", "Unit", "Bool"};
 
 MemoryTable *mem = NULL;
 
@@ -531,6 +534,9 @@ parse_type(unsigned int sep)
                 switch(tok.type) {
                 case IDE:
                         t = tlit(tok.str);
+                        if (!is_type(tok.str))
+                                error("Unknown type.", tok.linum,
+                                      tok.cpos, TYPE_ERROR);
                         break;
                 case NUM:
                         t = tvar(tok.num);
@@ -571,9 +577,23 @@ add_type(char *s)
 {
         SList *ntypes;
 
+        if (is_type(s)) error("Redefining type.", act_token().linum,
+                              act_token().cpos, TYPE_ERROR);
         ntypes = safe_malloc(sizeof(SList));
         *ntypes = (SList){.s = s, .next = types};
         types = ntypes;
+}
+
+int
+is_type(char *s)
+{
+        SList *p;
+
+        p = types;
+        while (p) {
+                if (!strcmp(s, p->s)) return 1;
+                p = p->next;
+        } return 0;
 }
 
 char *
@@ -948,6 +968,7 @@ find_ctx(char *name, Context *ctx)
                 if (!strcmp(name, ctx->name)) return ctx->sch;
                 ctx = ctx->next;
         } error("Unknown variable", linum, cpos, TYPE_ERROR);
+        exit(1);
 }
 
 void
