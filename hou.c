@@ -1550,6 +1550,19 @@ op_to_suffix(unsigned int op)
         } return "";
 }
 
+char *
+op_to_nsuffix(unsigned int op)
+{
+        char *s;
+        char *ops;
+
+        ops = op_to_suffix(op);
+        s   = safe_malloc(4);
+        if (ops[0] == 'n') sprintf(s, "%s", ops + 1);
+        else sprintf(s, "n%s", ops);
+        return s;
+}
+
 void
 cmp_e(char *l, char *r, char *op)
 {
@@ -1805,10 +1818,9 @@ compile_expr(Expr e, SContext *ctx, char *reg)
                 return ret_reg;
         }
         case IF_CLAUSE: {
-                char label_if[128], label_else[128], label_end[128];
+                char label_else[128], label_end[128];
                 char *ret_reg = reg ? reg : registers[alloc_reg()];
-                sprintf(label_if, "__if%d", ++ndecl);
-                sprintf(label_end, "__end%d", ndecl);
+                sprintf(label_end, "__end%d", ++ndecl);
                 sprintf(label_else, "__else%d", ndecl);
                 if (e.if_clause.condition->type == BINOP) {
                         Expr lexpr = *e.if_clause.condition->binop.left;
@@ -1817,19 +1829,14 @@ compile_expr(Expr e, SContext *ctx, char *reg)
                         char *regl = compile_expr(lexpr, ctx, NULL);
                         fprintf(out,
                                 "cmp %s, %s\n"
-                                "j%s %s\n"
-                                "jmp %s\n"
-                                "%s:\n", regl, regr,
-                                op_to_suffix(e.if_clause.condition->binop.op),
-                                label_if, label_else, label_if);
-
+                                "j%s %s\n", regl, regr,
+                                op_to_nsuffix(e.if_clause.condition->binop.op),
+                                label_else);
                 } else {
                         char *scratch_reg = compile_expr(*e.if_clause.condition, ctx, NULL);
                         fprintf(out, "cmp %s, 1\n"
-                                "je %s\n"
-                                "jmp %s\n"
-                                "%s:\n",
-                                scratch_reg, label_if, label_else, label_if);
+                                "jne %s\n",
+                                scratch_reg, label_else);
                 } compile_body(e.if_clause.if_expr, ctx, ret_reg);
                 fprintf(out, "jmp %s\n", label_end);
                 fprintf(out, "%s:\n", label_else);
