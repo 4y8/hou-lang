@@ -61,7 +61,6 @@ free_all()
                 free(mem);
                 mem = prev;
         }
-
 }
 
 int
@@ -83,6 +82,7 @@ punct_to_token(char c)
 }
 
 FILE *in;
+FILE *out;
 
 char *
 itoa(int i)
@@ -92,6 +92,16 @@ itoa(int i)
         str = safe_malloc(256);
         sprintf(str, "%d", i);
         return str;
+}
+
+char *
+safe_strdup(char *s)
+{
+        char *rs;
+
+        rs = safe_malloc(strlen(s) + 1);
+        strcpy(rs, s);
+        return rs;
 }
 
 void
@@ -106,6 +116,7 @@ error(char *msg, int linum, int cpos, Error err_code)
 
         slinum = linum;
         scpos  = cpos;
+        wsize  = 0;
         switch(err_code) {
         case UNEXPECTED_CHAR:
                 header_size = 21;
@@ -135,7 +146,6 @@ error(char *msg, int linum, int cpos, Error err_code)
         printf("   %s | ", itoa(slinum));
         while (--cpos) printf("%c", fgetc(in));
         printf("\033[31m");
-        wsize = 0;
         while ((c = fgetc(in)) != ' ' && c != '(' && c != ')' && c != '.') {
                 printf("%c", c);
                 ++wsize;
@@ -391,9 +401,7 @@ parse_body()
 {
         EList body;
         EList *p;
-        unsigned int loop;
 
-        loop = 1;
         p = &body;
         for(;;) {
                 p->next = safe_malloc(sizeof(EList));
@@ -466,8 +474,7 @@ binop(Expr *left, Expr *right, unsigned int op)
         *e = (Expr){.type = BINOP, .binop.op = op, .binop.left = left,
                     .binop.right = right, .linum = act_token().linum,
                     .cpos = act_token().cpos
-        };
-        return e;
+        }; return e;
 }
 
 Expr *
@@ -540,8 +547,8 @@ parse_type(unsigned int sep)
                 case IDE:
                         t = tlit(tok.str);
                         if (!is_type(tok.str))
-                                error("Unknown type.", tok.linum,
-                                      tok.cpos, TYPE_ERROR);
+                                error("Unknown type.", tok.linum, tok.cpos,
+                                      TYPE_ERROR);
                         break;
                 case NUM:
                         t = tvar(tok.num);
@@ -575,7 +582,15 @@ parse_arg(unsigned int sep)
         return args.next;
 }
 
-SList *types = NULL;
+SList   *types = NULL;
+Context *init_type_ctx = NULL;
+
+void
+add_init_type(char *s, Scheme sch)
+{
+
+        init_type_ctx = add_ctx(init_type_ctx, s, sch);
+}
 
 void
 add_type(char *s)
@@ -746,8 +761,6 @@ type_decls_to_decls(TDeclList *l, int length)
         return dl.next;
 }
 
-Context *init_type_ctx = NULL;
-
 Type *
 build_type(EList *l, char *name)
 {
@@ -781,6 +794,13 @@ app_reverse_subst(Type *t, Subst *s)
         return t;
 }
 
+Scheme
+scheme(IList *bind, Type *type)
+{
+
+        return (Scheme){.bind = bind, .type = type};
+}
+
 void
 type_decls_to_ctx(TDeclList *t, int len, IList *bind, char *tname)
 {
@@ -796,13 +816,11 @@ type_decls_to_ctx(TDeclList *t, int len, IList *bind, char *tname)
         p     = t;
         strcpy(scase, "|");
         while (p) {
-                Scheme sch;
-                sch.bind = bind;
-                sch.type = build_type(p->t.args, tname);
+                Scheme sch = scheme(bind, build_type(p->t.args, tname));
                 pp->next = safe_malloc(sizeof(SList));
                 pp->next->p = build_type(p->t.args, "a");
                 pp = pp->next;
-                init_type_ctx = add_ctx(init_type_ctx, p->t.name, sch);
+                add_init_type(p->t.name, sch);
                 strcat(scase, p->t.name);
                 p = p->next;
         } pp->next = safe_malloc(sizeof(PList));
@@ -812,7 +830,7 @@ type_decls_to_ctx(TDeclList *t, int len, IList *bind, char *tname)
         s = safe_malloc(sizeof(Subst));
         *s = (Subst){.nvar = 0, .t = tlit("a"), .next = NULL};
         ft = app_reverse_subst(tfun_list(l.next), s);
-        init_type_ctx = add_ctx(init_type_ctx, scase, gen(ft));
+        add_init_type(scase, gen(ft));
 }
 
 DeclList *
@@ -1081,8 +1099,8 @@ inst(Scheme sch)
         Type *t;
         IList *p;
 
-        p = sch.bind;
-        t = safe_malloc(sizeof(Type));
+        p  = sch.bind;
+        t  = safe_malloc(sizeof(Type));
         *t = *sch.type;
         while (p) {
                 Subst s = (Subst){.next = NULL, .nvar = p->i,
@@ -1219,23 +1237,13 @@ infer_args(EList *args, Context *ctx)
 
 }
 
-Scheme
-scheme(IList *bind, Type *type)
-{
-
-        return (Scheme){.bind = bind, .type = type};
-}
-
 Context *
 add_ctx(Context *ctx, char *name, Scheme sch)
 {
         Context *nctx;
 
         nctx = safe_malloc(sizeof(Context));
-        nctx->name = safe_malloc(strlen(name) + 1);
-        strcpy(nctx->name, name);
-        nctx->sch = sch;
-        nctx->next = ctx;
+        *nctx = (Context){.name = safe_strdup(name), .sch = sch, .next = ctx};
         return nctx;
 }
 
@@ -1523,8 +1531,6 @@ BSSTable *bss_table;
 
 int ndecl = -1;
 
-FILE *out;
-
 void
 add_bss(char *name, int size)
 {
@@ -1670,13 +1676,12 @@ div_op(char *ret_reg, char *regl, char *regr)
 
         reg = -1;
         if (strcmp(regl, "rax")) push("rax");
+        if (strcmp("rdx", regl)) push("rdx");
         if (!strcmp("rdx", regr)) {
-                reg = alloc_reg();
+                reg  = alloc_reg();
+                regr = safe_strdup(registers[reg]);
                 mov(registers[reg], "rdx");
-                regr = safe_malloc(4);
-                strcpy(regr, registers[reg]);
-        } if (strcmp("rdx", regl)) push("rdx");
-        mov("rax", regl);
+        } mov("rax", regl);
         fprintf(out, "xor rdx, rdx\n"
                "div %s\n", regr);
         mov(regl, ret_reg);
@@ -2052,9 +2057,9 @@ compile_decl(Decl decl, SContext *ctx, char *name)
         } else {
                 char label[64];
                 int length = 1;
-                int snvar = nvar;
-                int n = ++ndecl;
-                EList *p = decl.fun_decl.args;
+                int snvar  = nvar;
+                int n      = ++ndecl;
+                EList *p   = decl.fun_decl.args;
                 sprintf(label, "__decl%d", ++ndecl);
                 fprintf(out, "jmp %s\n"
                        "__%s%d:\n", label, name, n);
@@ -2132,7 +2137,6 @@ program(char *prog)
         add_type("Unit");
         add_type("Bool");
         decl  = parse_program();
-        print_ctx(init_type_ctx);
         infer_decls(decl, init_ctx);
         fprintf(out, "%s", prolog);
         compile_decls(decl);
