@@ -782,16 +782,19 @@ app_reverse_subst(Type *t, Subst *s)
 }
 
 void
-type_decls_to_ctx(TDeclList *t, int len, Ilist *bind, char *tname)
+type_decls_to_ctx(TDeclList *t, int len, IList *bind, char *tname)
 {
         TDeclList *p;
         PList *pp;
         PList l;
         Subst *s;
         Type *ft;
+        char *scase;
 
-        pp = &l;
-        p  = t;
+        scase = safe_malloc(1024);
+        pp    = &l;
+        p     = t;
+        strcpy(scase, "|");
         while (p) {
                 Scheme sch;
                 sch.bind = bind;
@@ -800,6 +803,7 @@ type_decls_to_ctx(TDeclList *t, int len, Ilist *bind, char *tname)
                 pp->next->p = build_type(p->t.args, "a");
                 pp = pp->next;
                 init_type_ctx = add_ctx(init_type_ctx, p->t.name, sch);
+                strcat(scase, p->t.name);
                 p = p->next;
         } pp->next = safe_malloc(sizeof(PList));
         pp = pp->next;
@@ -808,6 +812,7 @@ type_decls_to_ctx(TDeclList *t, int len, Ilist *bind, char *tname)
         s = safe_malloc(sizeof(Subst));
         *s = (Subst){.nvar = 0, .t = tlit("a"), .next = NULL};
         ft = app_reverse_subst(tfun_list(l.next), s);
+        init_type_ctx = add_ctx(init_type_ctx, scase, gen(ft));
 }
 
 DeclList *
@@ -880,29 +885,29 @@ parse_program()
 
 int nvar = -1;
 
-Ilist*
+IList*
 ftv(Type *t)
 {
-        Ilist *l;
+        IList *l;
 
         switch (t->type) {
         case TPAR: /* FALLTHROUGH */
         case TFUN:
                 l        = ftv(t->fun.left);
-                Ilist *p = l;
+                IList *p = l;
                 while (p) p = p->next;
                 p = ftv(t->fun.right);
                 break;
         case TLIT: l = NULL; break;
         case TVAR:
-                l  = safe_malloc(sizeof(Ilist));
-                *l = (Ilist){.next = NULL, .i = t->var};
+                l  = safe_malloc(sizeof(IList));
+                *l = (IList){.next = NULL, .i = t->var};
                 break;
         } return l;
 }
 
 int
-occurs(Ilist *l, int i)
+occurs(IList *l, int i)
 {
 
         while(l) {
@@ -911,11 +916,11 @@ occurs(Ilist *l, int i)
         } return 0;
 }
 
-Ilist *
+IList *
 ftv_sch(Scheme sch)
 {
-        Ilist *l;
-        Ilist *p;
+        IList *l;
+        IList *p;
 
         p = sch.bind;
         while (p) {
@@ -1074,7 +1079,7 @@ Type *
 inst(Scheme sch)
 {
         Type *t;
-        Ilist *p;
+        IList *p;
 
         p = sch.bind;
         t = safe_malloc(sizeof(Type));
@@ -1215,7 +1220,7 @@ infer_args(EList *args, Context *ctx)
 }
 
 Scheme
-scheme(Ilist *bind, Type *type)
+scheme(IList *bind, Type *type)
 {
 
         return (Scheme){.bind = bind, .type = type};
@@ -2127,6 +2132,7 @@ program(char *prog)
         add_type("Unit");
         add_type("Bool");
         decl  = parse_program();
+        print_ctx(init_type_ctx);
         infer_decls(decl, init_ctx);
         fprintf(out, "%s", prolog);
         compile_decls(decl);
