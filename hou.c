@@ -1807,7 +1807,8 @@ compile_closure(Decl d, char *reg, SContext *ctx)
                 fprintf(out, "mov rdi, QWORD [rsp + %d]\n"
                         "mov QWORD [%s + %d], rdi\n",
                         i << 3, scratch_reg, i << 3);
-        fprintf(out, "mov [%s + %d], r12\n", scratch_reg, nvar << 3);
+        if (nvar)
+                fprintf(out, "mov [%s + %d], r12\n", scratch_reg, nvar << 3);
         fprintf(out, "pop rdi\n"
                 "jmp %s\n"
                 "%s:\n", aft_label, label);
@@ -1816,18 +1817,19 @@ compile_closure(Decl d, char *reg, SContext *ctx)
         for (unsigned int i = nvar; i > 0; --i) {
                 fprintf(out, "push QWORD [rax + %d]\n", i << 3);
                 ++nvar;
-        } for (int i = clen; i; --i) {
+        } for (int i = 0; i < clen; ++i) {
                 p->num += nvar - old_nvar + 1;
                 p = p->next;
         } compile_body(d.fun_decl.body, ctx, "rax");
         if (old_nvar)
-                fprintf(out, "add rsp, %d\n"
-                        "ret\n", old_nvar << 3);
+                fprintf(out, "add rsp, %d\n", old_nvar << 3);
+        fprintf(out, "ret\n");
         fprintf(out, "%s:\n", aft_label);
         mov(ret_reg, scratch_reg);
         free_reg(scratch_reg);
         p = ctx;
-        for (int i = clen; i; --i) p = p->next;
+        if (clen)
+                for (int i = 0; i < clen - 1; ++i) p = p->next;
         p->next = NULL;
         p = ctx;
         while (p) {
