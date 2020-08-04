@@ -1,5 +1,4 @@
 #include <stdlib.h>
-#include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
 #include <stdio.h>
@@ -186,7 +185,7 @@ token_num(int num)
 }
 
 int unsused_char = EOF;
-int act_char = EOF;
+int act_char     = EOF;
 
 char
 next_char()
@@ -437,7 +436,7 @@ parse_fun()
 
         e = parse_expr();
         while (peek(LPARENT)) {
-                Expr *expr = malloc(sizeof(Expr));
+                Expr *expr = safe_malloc(sizeof(Expr));
                 EList args;
                 EList *p;
                 p = &args;
@@ -476,25 +475,27 @@ parse_op(Expr * (*fun)(), OpTable *ops, int nop)
         int i;
 
         e = fun();
-        while (1) {
+        for(;;) {
                 for (i = 0; i < nop; ++i)
                         if (peek(ops[i].tok)) {
                                 e = binop(e, fun(), ops[i].op);
                                 break;
                         }
-                if (i >= nop) return e;
+                if (i == nop) return e;
         }
 }
 
 Expr *
 parse_mul()
 {
+
         return parse_op(parse_fun, mul_op, 3);
 }
 
 Expr *
 parse_add()
 {
+
         return parse_op(parse_mul, add_op, 2);
 }
 
@@ -558,9 +559,8 @@ parse_arg(unsigned int sep)
         EList args;
         EList *p;
 
-        p = &args;
-        args.next = NULL;
         if (peek(sep)) return NULL;
+        p = &args;
         while (act_token().type != sep) {
                 p->next = safe_malloc(sizeof(EList));
                 p->next->expr = *parse_expr();
@@ -569,7 +569,8 @@ parse_arg(unsigned int sep)
                               act_token().cpos, SYNTAX_ERROR);
                 p = p->next;
                 if (!peek(sep)) assert(COL);
-        } return args.next;
+        } p->next = NULL;
+        return args.next;
 }
 
 SList *types = NULL;
