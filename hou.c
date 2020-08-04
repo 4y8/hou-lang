@@ -685,6 +685,25 @@ make_underscore_l()
         return e;
 }
 
+EList *
+build_arg_copy(EList *l)
+{
+        EList *p;
+        EList r;
+        int i;
+
+        i = 0;
+        p = &r;
+        while (l) {
+                p->next = safe_malloc(sizeof(EList));
+                p->next->expr = (Expr){.type = VAR, .var = safe_malloc(256)};
+                sprintf(p->next->expr.var, "_%d", ++i);
+                l = l->next;
+                p = p->next;
+        } p->next = NULL;
+        return r.next;
+}
+
 DeclList *
 type_decls_to_decls(TDeclList *l, int length)
 {
@@ -697,10 +716,11 @@ type_decls_to_decls(TDeclList *l, int length)
         while (i <= length){
                 p->next = safe_malloc(sizeof(DeclList));
                 p = p->next;
+                EList *cargs = build_arg_copy(l->t.args);
                 if (l->t.args)
                         p->decl =
                                 (Decl){.type = FUN_DECL,
-                                       .fun_decl.args = l->t.args,
+                                       .fun_decl.args = cargs,
                                        .name = l->t.name,
                                        .fun_decl.body = safe_malloc(sizeof(EList))};
                 else p->decl =
@@ -716,7 +736,7 @@ type_decls_to_decls(TDeclList *l, int length)
                                      make_dummy_vars(length - i));
                 *bp->expr.lam =
                         (Decl){.type = FUN_DECL, .fun_decl.args = args, .name = "",
-                               .fun_decl.body = make_underscore_app(l->t.args)};
+                               .fun_decl.body = make_underscore_app(cargs)};
                 l = l->next;
                 ++i;
         } p->next = NULL;
@@ -734,7 +754,7 @@ build_type(EList *l, char *name)
 }
 
 void
-type_decls_to_ctx(TDeclList *t, int len, Ilist *bind)
+type_decls_to_ctx(TDeclList *t, int len, Ilist *bind, char *tname)
 {
         TDeclList *p;
 
@@ -742,7 +762,7 @@ type_decls_to_ctx(TDeclList *t, int len, Ilist *bind)
         while (p) {
                 Scheme sch;
                 sch.bind = bind;
-                sch.type = build_type(p->t.args, p->t.name);
+                sch.type = build_type(p->t.args, tname);
                 init_type_ctx = add_ctx(init_type_ctx, p->t.name, sch);
                 p = p->next;
         }
@@ -777,10 +797,11 @@ parse_top_level()
                 init_ctx = add_ctx(init_ctx, tok.str, gen(parse_type(DOT)));
                 return NULL;
         } else if (tok.type == TYPE) {
-                add_type(extract_type_name());
-                assert(EQUAL);
                 TDeclList t;
                 TDeclList *p = &t;
+                char *name = extract_type_name();
+                add_type(name);
+                assert(EQUAL);
                 do {
                         p->next = safe_malloc(sizeof(TDeclList));
                         p->next->t = parse_type_decl();
@@ -790,7 +811,7 @@ parse_top_level()
                 p = t.next;
                 int len = 0;
                 length(p, len);
-                type_decls_to_ctx(t.next, len, NULL);
+                type_decls_to_ctx(t.next, len, NULL, name);
                 return type_decls_to_decls(t.next, len);
         } else error("Unexpected token.", act_token().linum,
                      act_token().cpos, SYNTAX_ERROR);
@@ -1411,6 +1432,18 @@ print_type(Type t)
                 printf(" ");
                 print_type(*t.fun.right);
                 break;
+        }
+}
+
+void
+print_ctx(Context *ctx)
+{
+
+        while (ctx) {
+                printf("%s: ", ctx->name);
+                print_type(*ctx->sch.type);
+                printf("\n");
+                ctx = ctx->next;
         }
 }
 
