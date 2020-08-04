@@ -138,7 +138,7 @@ error(char *msg, int linum, int cpos, Error err_code)
         while (--cpos) printf("%c", fgetc(in));
         printf("\033[31m");
         wsize = 0;
-        while ((c = fgetc(in)) != ' ' && c != '(' && c != ')') {
+        while ((c = fgetc(in)) != ' ' && c != '(' && c != ')' && c != '.') {
                 printf("%c", c);
                 ++wsize;
         } printf("\033[0m");
@@ -239,28 +239,28 @@ lexer()
                 char *str  = lex_while(iside);
                 int i      = keyword_to_token(str);
                 int sncpos = cpos;
-                cpos = scpos - 1;
+                cpos = scpos;
                 if (i == -1) tok = token_str(str);
                 else tok = token(i);
-                cpos = sncpos;
+                cpos = sncpos + 1;
         } else if (isdigit(used_char())) {
-                int scpos  = cpos;
-                int sncpos = cpos;
+                int scpos = cpos;
                 char *str  = lex_while(isdigit);
-                cpos = scpos - 1;
-                tok = token_num(atoi(str));
-                cpos = sncpos;
+                cpos = scpos + 1;
+                tok  = token_num(atoi(str));
+                cpos = scpos;
         } else {
                 int i = punct_to_token(used_char());
                 if (i != -1) tok = token(i);
                 else {
                         switch (used_char()) {
-                        case '\n': ++linum; cpos = -1; /* FALLTHROUGH */
+                        case '\n': ++linum; cpos = 0; /* FALLTHROUGH */
                         case ' ': case '\t':
                                 ++cpos;
                                 next_char();
                                 tok = lexer();
                                 unsused_char = used_char();
+                                --cpos;
                                 break;
                         case '-':
                                 if (next_char() == '>') {
@@ -2023,7 +2023,10 @@ program(char *prog)
         out = fopen("out.asm", "w");
         next_char();
         linum = 1;
-        cpos  = 0;
+        cpos  = 1;
+        add_type("Unit");
+        add_type("Int");
+        add_type("Bool");
         decl  = parse_program();
         infer_decls(decl, init_ctx);
         fprintf(out, "%s", prolog);
