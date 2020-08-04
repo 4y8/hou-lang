@@ -227,7 +227,7 @@ Subst *unify(Type *, Type *);
 Subst *bind(unsigned int, Type *);
 
 void  compile_decl(Decl, SContext *, char *);
-char *compile_expr(Expr, SContext *, char *);
+char *compile_expr(Expr, SContext *, char *, int);
 char *compile_body(EList *, SContext *, char *);
 char *compile_closure(Decl, char *, SContext *);
 

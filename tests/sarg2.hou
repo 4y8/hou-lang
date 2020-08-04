@@ -1,0 +1,2 @@
+sarg(a) -> let b = a + 2 in a
+main = sarg(2)
