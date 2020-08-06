@@ -386,6 +386,29 @@ parse_expr()
                                     .fun_decl.args = parse_arg(ARR),
                                     .fun_decl.body = parse_body()};
                 break;
+        case CASE: {
+                Expr *arg = parse_rel();
+                EList body;
+                EList *p;
+                char *fun;
+                p = &body;
+                assert(OF);
+
+                fun = safe_malloc(256);
+                strcpy(fun, "|");
+                while (!peek(DOT)) {
+                        p->next = safe_malloc(sizeof(EList));
+                        p->next->expr = *parse_rel();
+                        p = p->next;
+                        if (p->expr.type == FUN_CALL)
+                                strcat(fun, p->expr.fun_call.fun->var);
+                        else if (p->expr.type == VAR)
+                                strcat(fun, p->expr.var);
+                } p->next = NULL;
+
+                p = body.next;
+                break;
+        }
         default:
                 error("Unexpected token.", tok.linum, tok.cpos,
                       SYNTAX_ERROR);
@@ -812,13 +835,18 @@ type_decls_to_ctx(TDeclList *t, int len, IList *bind, char *tname)
         char *scase;
 
         scase = safe_malloc(1024);
-        pp    = &l;
+        l.next = safe_malloc(sizeof(SList));
+        l.next->p = tlit(tname);
+        pp    = l.next;
         p     = t;
         strcpy(scase, "|");
         while (p) {
                 Scheme sch = scheme(bind, build_type(p->t.args, tname));
                 pp->next = safe_malloc(sizeof(SList));
-                pp->next->p = build_type(p->t.args, "a");
+                if (p->t.args)
+                        pp->next->p = build_type(p->t.args, "a");
+                else
+                        pp->next->p = tfun(tlit("Unit"), tlit("a"));
                 pp = pp->next;
                 add_init_type(p->t.name, sch);
                 strcat(scase, p->t.name);
@@ -2138,6 +2166,7 @@ program(char *prog)
         add_type("Bool");
         decl  = parse_program();
         infer_decls(decl, init_ctx);
+        print_ctx(init_type_ctx);
         fprintf(out, "%s", prolog);
         compile_decls(decl);
         fprintf(out, "mov rdi, [_main]\n");
