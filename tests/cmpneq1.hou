@@ -1,1 +1,1 @@
-main = if (0 != 0) 82 else 1.
+main = if (0 != 0) 82 else 1

@@ -3,5 +3,4 @@ main =
 	    cons(a, b) -> a
 	    a = 4
 	    b = 7 
-	in
-	cons(b, a)
+	in cons(b, a)

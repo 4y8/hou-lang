@@ -1,1 +1,1 @@
-main = (if (False) 1 else 3.) + (if (True) 2 else 6789.)
+main = (if (False) 1 else 3) + (if (True) 2 else 6789)

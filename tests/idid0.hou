@@ -1,2 +1,4 @@
 id(a) -> a
-main = id(8); id(0)
+main = 
+	id(8) 
+	id(0) 
