@@ -1307,8 +1307,7 @@ infer_decl(Decl decl, Context *ctx)
                 tp.type = app_subst(at.type, tp.subst);
                 break;
         }
-        }
-        return tp;
+        } return tp;
 }
 
 TypeReturn
@@ -1628,7 +1627,7 @@ is_power_of2(int n)
         if (n == 0) return -1;
         i = 0;
         while (n != 1) {
-                if (n%2 != 0) return -1;
+                if (n % 2 != 0) return -1;
                 n >>= 1;
                 ++i;
         } return i;
