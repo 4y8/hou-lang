@@ -1094,7 +1094,7 @@ unify(Type *t1, Type *t2)
 		 (t1->type == TPAR && t2->type == TPAR)) {
 		Subst *s1 = unify(t1->fun.left, t2->fun.left);
 		Subst *s2 = unify(app_subst(t1->fun.right, s1),
-				  app_subst(t2->fun.right, s1));
+		                  app_subst(t2->fun.right, s1));
 		s = compose_subst(s1, s2);
 	} else error("Can't unify types", cpos, linum, TYPE_ERROR);
 	return s;
@@ -1132,7 +1132,7 @@ inst(Scheme sch)
 	*t = *sch.type;
 	while (p) {
 		Subst s = (Subst){.next = NULL, .nvar = p->i,
-				  .t = tvar(++nvar)};
+		                  .t = tvar(++nvar)};
 		t = app_subst(t, &s);
 		p = p->next;
 	} return t;
@@ -1216,7 +1216,7 @@ infer(Expr expr, Context *ctx)
 	}
 	case LETIN: {
 		tp = infer_body(expr.letin.expr,
-				infer_decls(expr.letin.decl, ctx));
+		                infer_decls(expr.letin.decl, ctx));
 		break;
 	}
 	case IF_CLAUSE: {
@@ -1232,11 +1232,11 @@ infer(Expr expr, Context *ctx)
 				infer_body(expr.if_clause.else_expr, ctx);
 			tp.subst = compose_subst(tp.subst, telse.subst);
 			tp.subst = compose_subst(tp.subst, unify(tif.type,
-								 telse.type));
+			                                         telse.type));
 			tp.type = app_subst(telse.type, tp.subst);
 		} else {
 			tp.subst = compose_subst(tp.subst,
-						 unify(tif.type, tlit("Unit")));
+			                         unify(tif.type, tlit("Unit")));
 			tp.type = tlit("Unit");
 		}
 		break;
@@ -1291,7 +1291,7 @@ infer_decl(Decl decl, Context *ctx)
 		ctx = add_ctx(ctx, decl.name, scheme(NULL, decl_type));
 		while (p) {
 			ctx = add_ctx(ctx, p->expr.var,
-				      scheme(NULL, tvar(++nvar)));
+			              scheme(NULL, tvar(++nvar)));
 			p = p->next;
 		} TypeReturn bt = infer_body(decl.fun_decl.body, ctx);
 		app_subst_ctx(bt.subst, ctx);
@@ -1318,10 +1318,10 @@ infer_body(EList *body, Context *ctx)
 	tp.subst = NULL;
 	while (body) {
 		TypeReturn inf = infer(body->expr, ctx);
-		tp.subst = compose_subst(tp.subst, inf.subst);
-		tp.type = inf.type;
+		tp.subst       = compose_subst(tp.subst, inf.subst);
+		tp.type        = inf.type;
+		body           = body->next;
 		app_subst_ctx(tp.subst, ctx);
-		body = body->next;
 	} return tp;
 }
 
@@ -1386,38 +1386,38 @@ void
 print_token(Token t)
 {
 	switch(t.type) {
-	case IN:      printf("in");		    break;
-	case IF:      printf("if");		    break;
-	case OF:      printf("of");		    break;
-	case LET:     printf("let");		   break;
-	case ELSE:    printf("else");		  break;
-	case CASE:    printf("case");		  break;
-	case ELIF:    printf("elif");		  break;
-	case TYPE:    printf("type");		  break;
-	case EXTERN:  printf("extern");		break;
-	case OR:      printf("|");		     break;
+	case IN:      printf("in");                    break;
+	case IF:      printf("if");                    break;
+	case OF:      printf("of");                    break;
+	case LET:     printf("let");                   break;
+	case ELSE:    printf("else");                  break;
+	case CASE:    printf("case");                  break;
+	case ELIF:    printf("elif");                  break;
+	case TYPE:    printf("type");                  break;
+	case EXTERN:  printf("extern");	               break;
+	case OR:      printf("|");                     break;
 	case NUM:     printf("number: %d", t.num);     break;
 	case IDE:     printf("identifier: %s", t.str); break;
 	case STR:     printf("string: %s", t.str);     break;
-	case COL:     printf(",");		     break;
-	case DOT:     printf(".");		     break;
-	case ARR:     printf("->");		    break;
-	case LOW:     printf("<");		     break;
-	case MOD:     printf("%%");		    break;
-	case PLUS:    printf("+");		     break;
-	case GREAT:   printf(">");		     break;
-	case EQUAL:   printf("=");		     break;
-	case MINUS:   printf("-");		     break;
-	case TIMES:   printf("*");		     break;
-	case BACKS:   printf("\\");		    break;
-	case EXCLAM:  printf("!");		     break;
-	case DIVISE:  printf("/");		     break;
-	case INFIXL:  printf("infixl");		break;
-	case INFIXR:  printf("infixr");		break;
-	case LPARENT: printf("(");		     break;
-	case RPARENT: printf(")");		     break;
-	case SEMICOL: printf(";");		     break;
-	case END:     printf("END");		   break;
+	case COL:     printf(",");                     break;
+	case DOT:     printf(".");                     break;
+	case ARR:     printf("->");                    break;
+	case LOW:     printf("<");                     break;
+	case MOD:     printf("%%");                    break;
+	case PLUS:    printf("+");                     break;
+	case GREAT:   printf(">");                     break;
+	case EQUAL:   printf("=");                     break;
+	case MINUS:   printf("-");                     break;
+	case TIMES:   printf("*");                     break;
+	case BACKS:   printf("\\");                    break;
+	case EXCLAM:  printf("!");                     break;
+	case DIVISE:  printf("/");                     break;
+	case INFIXL:  printf("infixl");	               break;
+	case INFIXR:  printf("infixr");	               break;
+	case LPARENT: printf("(");                     break;
+	case RPARENT: printf(")");                     break;
+	case SEMICOL: printf(";");                     break;
+	case END:     printf("END");                   break;
     }
 }
 
@@ -1571,7 +1571,7 @@ add_bss(char *name, int size)
 		p = p->next;
 	} nbss_table = safe_malloc(sizeof(BSSTable));
 	*nbss_table = (BSSTable) {.name = safe_malloc(64), .size = size,
-				  .next = bss_table};
+	                          .next = bss_table};
 	strncpy(nbss_table->name, name, 64);
 	bss_table = nbss_table;
 }
@@ -1690,9 +1690,9 @@ cmp_e(char *l, char *r, char *op)
 
 	reg = registers[alloc_reg()];
 	fprintf(out, "mov %s, 1\n"
-	       "cmp %s, %s\n"
-	       "mov %s, 0\n"
-	       "cmov%s %s, %s\n", reg, l, r, l, op, l, reg);
+	        "cmp %s, %s\n"
+	        "mov %s, 0\n"
+	        "cmov%s %s, %s\n", reg, l, r, l, op, l, reg);
 	free_reg(reg);
 }
 
@@ -1710,7 +1710,7 @@ div_op(char *ret_reg, char *regl, char *regr)
 		mov(registers[reg], "rdx");
 	} mov("rax", regl);
 	fprintf(out, "xor rdx, rdx\n"
-	       "div %s\n", regr);
+	        "div %s\n", regr);
 	mov(regl, ret_reg);
 	if (strcmp("rdx", regl)) pop("rdx");
 	if (strcmp("rax", regl)) pop("rax");
@@ -1737,11 +1737,11 @@ compile_math(char *regl, char *regr, unsigned int op)
 {
 
 	switch(op) {
-	case OP_MOD:    div_op("rdx", regl, regr);		 break;
+	case OP_MOD:    div_op("rdx", regl, regr);                 break;
 	case OP_PLUS:   fprintf(out, "add %s, %s\n", regl, regr);  break;
 	case OP_MINUS:  fprintf(out, "sub %s, %s\n", regl, regr);  break;
 	case OP_TIMES:  fprintf(out, "imul %s, %s\n", regl, regr); break;
-	case OP_DIVISE: div_op("rax", regl, regr);		 break;
+	case OP_DIVISE: div_op("rax", regl, regr);                 break;
 	}
 }
 
@@ -1786,7 +1786,7 @@ compile_expr(Expr e, SContext *ctx, char *reg, int ismod)
 		char *ret_reg = reg ? reg : registers[alloc_reg()];
 		if (e.num) fprintf(out, "mov %s, %d\n", ret_reg, e.num);
 		else fprintf(out, "xor %s, %s\n", ret_reg,
-			    ret_reg);
+		            ret_reg);
 		return ret_reg;
 	}
 	case BINOP: {
@@ -1907,7 +1907,7 @@ compile_expr(Expr e, SContext *ctx, char *reg, int ismod)
 				fprintf(out, "push QWORD [_%s]\n", s);
 			else
 				fprintf(out, "sub rsp, 8\n"
-					"mov r12, [_%s]\n", s);
+				        "mov r12, [_%s]\n", s);
 			p = p->next;
 			++len;
 		} char *ret_reg = compile_body(e.letin.expr, ctx, reg);
@@ -1955,10 +1955,10 @@ compile_expr(Expr e, SContext *ctx, char *reg, int ismod)
 			char *regr = compile_expr(rexpr, ctx, NULL, 0);
 			char *regl = compile_expr(lexpr, ctx, NULL, 0);
 			fprintf(out,
-				"cmp %s, %s\n"
-				"j%s %s\n", regl, regr,
-				op_to_nsuffix(e.if_clause.condition->binop.op),
-				label_else);
+			        "cmp %s, %s\n"
+			        "j%s %s\n", regl, regr,
+			        op_to_nsuffix(e.if_clause.condition->binop.op),
+			        label_else);
 		} else {
 			char *scratch_reg = compile_expr(*e.if_clause.condition, ctx, NULL, 0);
 			fprintf(out, "cmp %s, 1\n"
@@ -1998,11 +1998,11 @@ compile_closure(Decl d, char *reg, SContext *ctx)
 	sprintf(label, "__decl%d", ++ndecl);
 	sprintf(aft_label, "__decl%d", ++ndecl);
 	fprintf(out, "push rax\n"
-		"mov rax, %d\n"
-		"call _custom_malloc\n", (nvar + 2) << 3);
+	        "mov rax, %d\n"
+	        "call _custom_malloc\n", (nvar + 2) << 3);
 	mov(scratch_reg, "rax");
 	fprintf(out, "pop rax\n"
-		"mov QWORD [%s], %s\n", scratch_reg, label);
+	        "mov QWORD [%s], %s\n", scratch_reg, label);
 	len  = 1;
 	ap   = d.fun_decl.args;
 	p    = ctx;
@@ -2023,8 +2023,8 @@ compile_closure(Decl d, char *reg, SContext *ctx)
 	if (nvar > 0) {
 		for (int i = 1; i < nvar; ++i)
 			fprintf(out, "mov rdi, QWORD [rsp + %d]\n"
-				"mov QWORD [%s + %d], rdi\n",
-				i << 3, scratch_reg, i << 3);
+			        "mov QWORD [%s + %d], rdi\n",
+			        i << 3, scratch_reg, i << 3);
 		fprintf(out, "mov [%s + %d], r12\n", scratch_reg, nvar << 3);
 	} fprintf(out, "pop rdi\n"
 		  "jmp %s\n"
@@ -2089,7 +2089,7 @@ compile_decl(Decl decl, SContext *ctx, char *name)
 		EList *p   = decl.fun_decl.args;
 		sprintf(label, "__decl%d", ++ndecl);
 		fprintf(out, "jmp %s\n"
-		       "__%s%d:\n", label, name, n);
+		        "__%s%d:\n", label, name, n);
 		while (p) {
 			ctx = add_sctx(ctx, p->expr.var, ++nvar);
 			++length;
