@@ -53,9 +53,10 @@ typedef struct expr {
                 } if_clause;
                 struct decl *lam;
                 char        *var;
-                int          num;
+		int          num;
+		Elist      *body;
         };
-        enum { FUN_CALL, INT, VAR, LETIN, BINOP, IF_CLAUSE, LAM } type;
+        enum { FUN_CALL, INT, VAR, LETIN, BINOP, IF_CLAUSE, LAM, BODY } type;
         int cpos;
         int linum;
 } Expr;
