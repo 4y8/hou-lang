@@ -2,163 +2,164 @@
 #define __HOU_H_
 
 typedef struct {
-        enum { LPARENT, RPARENT, IDE, NUM, STR, EQUAL, SEMICOL, COL,
-               END, ARR, LET, IN, PLUS, MINUS, TIMES, DIVISE, DOT, IF,
-               ELSE, ELIF, GREAT, LOW, EXTERN, BACKS, EXCLAM, OR, TYPE,
-               MOD, INFIXL, INFIXR, CASE, OF } type;
-        union {
-                int   num;
-                char *str;
-        };
-        int cpos;
-        int linum;
+	enum {LPARENT, RPARENT, IDE, NUM, STR, EQUAL, SEMICOL, COL,
+	      END, ARR, LET, IN, PLUS, MINUS, TIMES, DIVISE, DOT, IF,
+	      ELSE, ELIF, GREAT, LOW, EXTERN, BACKS, EXCLAM, OR, TYPE,
+	      MOD, INFIXL, INFIXR, CASE, OF} type;
+
+	union {
+		int   num;
+		char *str;
+	};
+	int                                  cpos;
+	int                                  linum;
 } Token;
 
 typedef struct {
-        unsigned int t;
-        char        *s;
+	unsigned int t;
+	char *       s;
 } KeywordToken;
 
 typedef struct {
-        unsigned int t;
-        char         c;
+	unsigned int t;
+	char         c;
 } PuncToken;
 
 typedef struct op_table {
-        unsigned int tok;
-        unsigned int op;
+	unsigned int tok;
+	unsigned int op;
 } OpTable;
 
 typedef struct expr {
-        union {
-                struct {
-                        struct decllist *decl;
-                        struct elist *expr;
-                } letin;
-                struct {
-                        struct expr *fun;
-                        struct elist *args;
-                } fun_call;
-                struct {
-                        struct expr *left;
-                        struct expr *right;
-                        enum { OP_PLUS, OP_MINUS, OP_TIMES, OP_DIVISE, OP_LOW,
-                               OP_GREAT, OP_LOWE, OP_GREATE, OP_EQUAL, OP_NEQUAL,
-                               OP_MOD} op;
-                } binop;
-                struct {
-                        struct expr *condition;
-                        struct elist *if_expr;
-                        struct elist *else_expr;
-                } if_clause;
-                struct decl *lam;
-                char        *var;
-                int          num;
-        };
-        enum { FUN_CALL, INT, VAR, LETIN, BINOP, IF_CLAUSE, LAM } type;
-        int cpos;
-        int linum;
+	union {
+		struct {
+			struct decllist *decl;
+			struct elist *   expr;
+		}            letin;
+		struct {
+			struct expr * fun;
+			struct elist *args;
+		}            fun_call;
+		struct {
+			struct expr * left;
+			struct expr * right;
+			enum {OP_PLUS, OP_MINUS, OP_TIMES, OP_DIVISE, OP_LOW,
+			      OP_GREAT, OP_LOWE, OP_GREATE, OP_EQUAL, OP_NEQUAL,
+			      OP_MOD} op;
+		}            binop;
+		struct {
+			struct expr * condition;
+			struct elist *if_expr;
+			struct elist *else_expr;
+		}            if_clause;
+		struct decl *lam;
+		char *       var;
+		int          num;
+	};
+	enum {FUN_CALL, INT, VAR, LETIN, BINOP, IF_CLAUSE, LAM} type;
+	int                                                     cpos;
+	int                                                     linum;
 } Expr;
 
 typedef struct elist {
-        Expr          expr;
-        struct elist *next;
+	Expr          expr;
+	struct elist *next;
 } EList;
 
 typedef struct decl {
-        union {
-                struct {
-                        EList *args;
-                        EList *body;
-                } fun_decl;
-                EList *var_decl;
-        };
-        char                       *name;
-        enum { FUN_DECL, VAR_DECL } type;
+	union {
+		struct {
+			EList *args;
+			EList *body;
+		}      fun_decl;
+		EList *var_decl;
+	};
+	char *                    name;
+	enum {FUN_DECL, VAR_DECL} type;
 } Decl;
 
 typedef struct decllist {
-        Decl             decl;
-        struct decllist *next;
+	Decl             decl;
+	struct decllist *next;
 } DeclList;
 
 typedef struct typedecl {
-        char  *name;
-        EList *args;
+	char * name;
+	EList *args;
 } TypeDecl;
 
 typedef struct tdecllist {
-        TypeDecl          t;
-        struct tdecllist *next;
+	TypeDecl          t;
+	struct tdecllist *next;
 } TDeclList;
 
 typedef struct type {
-        union {
-                char        *lit;
-                unsigned int var;
-                struct {
-                        struct type *left;
-                        struct type *right;
-                } fun;
-        };
-        enum { TLIT, TVAR, TFUN, TPAR } type;
+	union {
+		char *       lit;
+		unsigned int var;
+		struct {
+			struct type *left;
+			struct type *right;
+		}            fun;
+	};
+	enum {TLIT, TVAR, TFUN, TPAR} type;
 } Type;
 
 typedef struct slist {
-        char *s;
-        struct slist *next;
+	char *        s;
+	struct slist *next;
 } SList;
 
 typedef struct plist {
-        void *p;
-        struct plist *next;
+	void *        p;
+	struct plist *next;
 } PList;
 
 typedef struct subst {
-        unsigned int  nvar;
-        Type         *t;
-        struct subst *next;
+	unsigned int  nvar;
+	Type *        t;
+	struct subst *next;
 } Subst;
 
 typedef struct ilist {
-        unsigned int i;
-        struct ilist *next;
+	unsigned int  i;
+	struct ilist *next;
 } IList;
 
 typedef struct {
-        struct ilist *bind;
-        Type         *type;
+	struct ilist *bind;
+	Type *        type;
 } Scheme;
 
 typedef struct {
-        Type  *type;
-        Subst *subst;
+	Type * type;
+	Subst *subst;
 } TypeReturn;
 
 typedef struct ctx_elem {
-        char  *name;
-        Scheme sch;
-        struct ctx_elem *next;
+	char *           name;
+	Scheme           sch;
+	struct ctx_elem *next;
 } Context;
 
 typedef struct sctx_elem {
-        char *name;
-        int num;
-        struct sctx_elem *next;
+	char *            name;
+	int               num;
+	struct sctx_elem *next;
 } SContext;
 
 typedef struct bss_elem {
-        char *name;
-        int size;
-        struct bss_elem *next;
+	char *           name;
+	int              size;
+	struct bss_elem *next;
 } BSSTable;
 
 typedef struct mem_elem {
-        void *p;
-        struct mem_elem *next;
+	void *           p;
+	struct mem_elem *next;
 } MemoryTable;
 
-typedef enum { TYPE_ERROR, UNEXPECTED_CHAR, SYNTAX_ERROR } Error;
+typedef enum {TYPE_ERROR, UNEXPECTED_CHAR, SYNTAX_ERROR} Error;
 
 char *itoa(int);
 
@@ -180,27 +181,27 @@ void add_type(char *);
 
 int peek(unsigned int);
 
-Expr     *parse_expr();
-Expr     *parse_op(Expr *(*)(), OpTable *, int);
-Expr     *parse_rel();
-Expr     *parse_add();
-Expr     *parse_mul();
-Expr     *parse_fun();
-EList    *parse_else();
-EList    *parse_arg(unsigned int);
-EList    *parse_body();
+Expr *parse_expr();
+Expr *parse_op(Expr *(*)(), OpTable *, int);
+Expr *parse_rel();
+Expr *parse_add();
+Expr *parse_mul();
+Expr *parse_fun();
+EList *parse_else();
+EList *parse_arg(unsigned int);
+EList *parse_body();
 DeclList *parse_top_level();
 DeclList *parse_program();
 
 int       is_type(char *);
 void      add_type(char *);
-char     *extract_type_name();
-Type     *parse_type();
-Expr     *make_underscore();
-EList    *append(EList *, EList *);
-EList    *make_dummy_vars(int);
-EList    *make_underscore_app(EList *);
-EList    *make_underscore_l();
+char *extract_type_name();
+Type *parse_type();
+Expr *make_underscore();
+EList *append(EList *, EList *);
+EList *make_dummy_vars(int);
+EList *make_underscore_app(EList *);
+EList *make_underscore_l();
 TypeDecl  parse_type_decl();
 DeclList *type_decls_to_decls(TDeclList *, int);
 
@@ -216,13 +217,13 @@ Type *tpar(Type *, Type *);
 Type *tvar(unsigned int);
 Type *tlit();
 
-Type  *app_subst(Type *, Subst *);
+Type *app_subst(Type *, Subst *);
 Scheme app_subst_sch(Scheme, Subst *);
 
 Subst *compose_subst(Subst *, Subst *);
 Scheme find_ctx(char *, Context *);
 
-Context   *infer_decls(DeclList *, Context *);
+Context *infer_decls(DeclList *, Context *);
 TypeReturn infer(Expr, Context *);
 TypeReturn infer_args(EList *, Context *);
 TypeReturn infer_decl(Decl, Context *);
