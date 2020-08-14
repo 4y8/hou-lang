@@ -157,8 +157,7 @@ error(char *msg, int linum, int cpos, Error err_code)
 	for (int i = 0; i < strlen(itoa(slinum)); ++i) printf(" ");
 	printf("    | ");
 	while (--scpos) printf(" ");
-	printf("\033[31m");
-	printf("^");
+	printf("\033[31m^");
 	while (--wsize) printf("~");
 	printf("\n\033\[0m");
 	free_all();
