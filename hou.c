@@ -108,11 +108,11 @@ void
 error(char *msg, int linum, int cpos, Error err_code)
 {
 	char *err_header;
-	int   header_size;
-	int   slinum;
-	int   scpos;
-	int   wsize;
-	int   c;
+	int header_size;
+	int slinum;
+	int scpos;
+	int wsize;
+	int c;
 
 	slinum = linum;
 	scpos  = cpos;
@@ -123,13 +123,11 @@ error(char *msg, int linum, int cpos, Error err_code)
 		err_header  = safe_malloc(header_size);
 		strncpy(err_header, "UNEXPECTED CHARACTER ", header_size);
 		break;
-
 	case TYPE_ERROR:
 		header_size = 11;
 		err_header  = safe_malloc(header_size);
 		strncpy(err_header, "TYPE ERROR ", header_size);
 		break;
-
 	case SYNTAX_ERROR:
 		header_size = 13;
 		err_header  = safe_malloc(header_size);
@@ -204,8 +202,7 @@ next_char()
 		act_char     = unsused_char;
 		unsused_char = EOF;
 		return act_char;
-	}
-	else return act_char = fgetc(in);
+	} else return act_char = fgetc(in);
 }
 
 int
@@ -218,7 +215,7 @@ char *
 lex_while(int (*fun)(int))
 {
 	char *str;
-	int   i;
+	int i;
 
 	i   = 0;
 	str = safe_malloc(256);
@@ -238,6 +235,8 @@ iside(int c)
 	return isalnum(c) || c == '_' || c == '\'';
 }
 
+int indent = 0;
+
 Token
 lexer()
 {
@@ -246,29 +245,42 @@ lexer()
 	if (used_char() == EOF) return token(END);
 
 	if (isalpha(used_char())) {
-		int   scpos  = cpos;
-		char *str    = lex_while(iside);
-		int   i      = keyword_to_token(str);
-		int   sncpos = cpos;
+		char *str  = lex_while(iside);
+		int scpos  = cpos;
+		int i      = keyword_to_token(str);
+		int sncpos = cpos;
 		cpos = scpos;
 		if (i == -1) tok = token_str(str);
 		else tok = token(i);
 		cpos = sncpos + 1;
-	}
-	else if (isdigit(used_char())) {
-		int   scpos = cpos;
+	} else if (isdigit(used_char())) {
+		int scpos = cpos;
 		char *str   = lex_while(isdigit);
 		cpos = scpos + 1;
 		tok  = token_num(atoi(str));
 		cpos = scpos;
-	}
-	else {
+	} else {
 		int i = punct_to_token(used_char());
 		if (i != -1) tok = token(i);
 		else
 			switch (used_char()) {
-			case '\n': ++linum; cpos = 0; /* FALLTHROUGH */
+			case '\n': {
+				char c;
+				int nindent;
+				++linum;
+				cpos = 0;
+				nindent = 0;
+				while ((c = next_char()) == ' ' || c == '\t') {
+					if (c == ' ') ++nindent;
+					else nindent += 8;
 
+				}
+				if (nindent == indent) tok = lexer();
+				else if (nindent > indent) tok = token(PINDENT);
+				else if (nindent < indent) tok = token(MINDENT);
+				indent = nindent;
+				break;
+			}
 			case ' ':
 			case '\t':
 				++cpos;
@@ -277,22 +289,18 @@ lexer()
 				unsused_char = used_char();
 				--cpos;
 				break;
-
 			case '-':
 				if (next_char() == '>') {
 					tok = token(ARR);
 					++cpos;
-				}
-				else if (used_char() == '-') {
+				} else if (used_char() == '-') {
 					while (next_char() != '\n' &&
 					       used_char() != 0) ++cpos;
 					return lexer();
-				}
-				else {
+				} else {
 					unsused_char = used_char();
 					tok          = token(MINUS);
 				} break;
-
 			default: error("Unexecpected charachter", linum, cpos,
 				       UNEXPECTED_CHAR);
 			}
@@ -355,13 +363,11 @@ parse_expr()
 	case IDE:
 		*expr = (Expr){.type = VAR, .var = tok.str};
 		break;
-
 	case NUM:
 		*expr = (Expr){.type = INT, .num = tok.num};
 		break;
-
 	case LET: {
-		DeclList  l;
+		DeclList l;
 		DeclList *p;
 		p = &l;
 		while (!peek(IN)) {
@@ -373,7 +379,6 @@ parse_expr()
 			         .letin.expr = parse_body()};
 		break;
 	}
-
 	case IF: {
 		Expr *cond;
 		assert(LPARENT);
@@ -385,12 +390,10 @@ parse_expr()
 			       .if_clause.else_expr = parse_else()};
 		break;
 	}
-
 	case LPARENT:
 		expr = parse_rel();
 		assert(RPARENT);
 		break;
-
 	case BACKS:
 		*expr      = (Expr){.type = LAM, .lam = safe_malloc(sizeof(Decl))};
 		*expr->lam = (Decl){.type          = FUN_DECL,
@@ -398,10 +401,9 @@ parse_expr()
 			            .fun_decl.args = parse_arg(ARR),
 			            .fun_decl.body = parse_body()};
 		break;
-
 	case CASE: {
 		Expr * arg = parse_rel();
-		EList  body;
+		EList body;
 		EList *p;
 		char * fun;
 
@@ -422,7 +424,6 @@ parse_expr()
 		p       = body.next;
 		break;
 	}
-
 	default:
 		error("Unexpected token.", tok.linum, tok.cpos,
 		      SYNTAX_ERROR);
@@ -436,7 +437,7 @@ parse_expr()
 EList *
 parse_body()
 {
-	EList  body;
+	EList body;
 	EList *p;
 
 	p = &body;
@@ -459,8 +460,7 @@ parse_else()
 		body = parse_body();
 		assert(DOT);
 		return body;
-	}
-	else if (peek(ELIF)) {
+	} else if (peek(ELIF)) {
 		EList *body = safe_malloc(sizeof(EList));
 		body->next = NULL;
 		assert(LPARENT);
@@ -471,8 +471,7 @@ parse_else()
 			            .if_clause.if_expr   = parse_body(),
 			            .if_clause.else_expr = parse_else()};
 		return body;
-	}
-	else if (peek(DOT)) return NULL;
+	} else if (peek(DOT)) return NULL;
 	else error("Unexpected token.", act_token().linum, act_token().cpos,
 		   SYNTAX_ERROR);
 	return NULL;
@@ -486,7 +485,7 @@ parse_fun()
 	e = parse_expr();
 	while (peek(LPARENT)) {
 		Expr * expr = safe_malloc(sizeof(Expr));
-		EList  args;
+		EList args;
 		EList *p;
 		p = &args;
 		while (!peek(RPARENT)) {
@@ -520,7 +519,7 @@ Expr *
 parse_op(Expr * (*fun)(), OpTable *ops, int nop)
 {
 	Expr *e;
-	int   i;
+	int i;
 
 	e = fun();
 	for (;;) {
@@ -564,6 +563,7 @@ parse_rel()
 		else if (peek(EXCLAM) && peek(EQUAL))
 			e = binop(e, parse_add(), OP_NEQUAL);
 		else return e;
+
 	}
 }
 
@@ -607,7 +607,7 @@ parse_type(unsigned int sep)
 EList *
 parse_arg(unsigned int sep)
 {
-	EList  args;
+	EList args;
 	EList *p;
 
 	if (peek(sep)) return NULL;
@@ -701,7 +701,7 @@ append(EList *l1, EList *l2)
 EList *
 make_dummy_vars(int length)
 {
-	EList  l;
+	EList l;
 	EList *p;
 
 	p = &l;
@@ -754,8 +754,8 @@ EList *
 build_arg_copy(EList *l)
 {
 	EList *p;
-	EList  r;
-	int    i;
+	EList r;
+	int i;
 
 	i = 0;
 	p = &r;
@@ -773,8 +773,8 @@ build_arg_copy(EList *l)
 DeclList *
 type_decls_to_decls(TDeclList *l, int length)
 {
-	int       i;
-	DeclList  dl;
+	int i;
+	DeclList dl;
 	DeclList *p;
 
 	i = 1;
@@ -853,7 +853,7 @@ type_decls_to_ctx(TDeclList *t, int len, IList *bind, char *tname)
 {
 	TDeclList *p;
 	PList *    pp;
-	PList      l;
+	PList l;
 	Subst *    s;
 	Type *     ft;
 	char *     scase;
@@ -890,8 +890,8 @@ DeclList *
 parse_top_level()
 {
 	DeclList *ret;
-	Decl      decl;
-	Token     tok;
+	Decl decl;
+	Token tok;
 
 	ret = safe_malloc(sizeof(DeclList));
 	tok = next_token();
@@ -905,20 +905,17 @@ parse_top_level()
 				      .fun_decl.args = args,
 				      .fun_decl.body = parse_body(),
 				      .name          = name};
-		}
-		else if (tok.type == EQUAL)
+		} else if (tok.type == EQUAL)
 			decl = (Decl){.type     = VAR_DECL, .name = name,
 				      .var_decl = parse_body()};
 		else error("Unexpected token.", act_token().linum,
 			   act_token().cpos, SYNTAX_ERROR);
-	}
-	else if (tok.type == EXTERN) {
+	} else if (tok.type == EXTERN) {
 		tok      = next_token();
 		init_ctx = add_ctx(init_ctx, tok.str, gen(parse_type(DOT)));
 		return NULL;
-	}
-	else if (tok.type == TYPE) {
-		TDeclList  t;
+	} else if (tok.type == TYPE) {
+		TDeclList t;
 		TDeclList *p    = &t;
 		char *     name = extract_type_name();
 		add_type(name);
@@ -934,9 +931,8 @@ parse_top_level()
 		length(p, len);
 		type_decls_to_ctx(t.next, len, NULL, name);
 		return type_decls_to_decls(t.next, len);
-	}
-	else error("Unexpected token.", act_token().linum,
-		   act_token().cpos, SYNTAX_ERROR);
+	} else error("Unexpected token.", act_token().linum,
+		     act_token().cpos, SYNTAX_ERROR);
 	*ret = (DeclList){.next = NULL, .decl = decl};
 	return ret;
 }
@@ -945,7 +941,7 @@ DeclList *
 parse_program()
 {
 	DeclList *p;
-	DeclList  decls;
+	DeclList decls;
 
 	decls.next = NULL;
 	unused_tok = token(END);
@@ -1093,8 +1089,7 @@ app_subst_sch(Scheme sch, Subst *s)
 			if (p->next) {
 				p->nvar = p->next->nvar;
 				p->t    = p->next->t;
-			}
-			else s->nvar = -1;
+			} else s->nvar = -1;
 			continue;
 		}
 		p = p->next;
@@ -1139,8 +1134,7 @@ unify(Type *t1, Type *t2)
 		Subst *s2 = unify(app_subst(t1->fun.right, s1),
 		                  app_subst(t2->fun.right, s1));
 		s = compose_subst(s1, s2);
-	}
-	else error("Can't unify types", cpos, linum, TYPE_ERROR);
+	} else error("Can't unify types", cpos, linum, TYPE_ERROR);
 	return s;
 }
 
@@ -1201,8 +1195,7 @@ add_tfun(Type *t1, Type *t2, int length)
 			--length;
 		}
 		return tfun(t1, t2);
-	}
-	else return tfun(t1, t2);
+	} else return tfun(t1, t2);
 }
 
 TypeReturn
@@ -1250,7 +1243,7 @@ infer(Expr expr, Context *ctx)
 		TypeReturn ft = infer(*expr.fun_call.fun, ctx);
 		app_subst_ctx(ft.subst, ctx);
 		/* Get number of arguments */
-		int    length = 0;
+		int length = 0;
 		EList *p      = expr.fun_call.args;
 		while (p) {
 			++length;
@@ -1287,8 +1280,7 @@ infer(Expr expr, Context *ctx)
 			tp.subst = compose_subst(tp.subst, unify(tif.type,
 			                                         telse.type));
 			tp.type = app_subst(telse.type, tp.subst);
-		}
-		else {
+		} else {
 			tp.subst = compose_subst(tp.subst,
 			                         unify(tif.type, tlit("Unit")));
 			tp.type = tlit("Unit");
@@ -1315,8 +1307,7 @@ infer_args(EList *args, Context *ctx)
 		if (rest.type) {
 			tp.type  = tfun(arg.type, rest.type);
 			tp.subst = compose_subst(arg.subst, rest.subst);
-		}
-		else tp = arg;
+		} else tp = arg;
 	}
 	return tp;
 }
@@ -1453,67 +1444,38 @@ print_token(Token t)
 {
 	switch (t.type) {
 	case IN:      printf("in");                    break;
-
 	case IF:      printf("if");                    break;
-
 	case OF:      printf("of");                    break;
-
 	case LET:     printf("let");                   break;
-
 	case ELSE:    printf("else");                  break;
-
 	case CASE:    printf("case");                  break;
-
 	case ELIF:    printf("elif");                  break;
-
 	case TYPE:    printf("type");                  break;
-
 	case EXTERN:  printf("extern");                break;
-
 	case OR:      printf("|");                     break;
-
 	case NUM:     printf("number: %d", t.num);     break;
-
 	case IDE:     printf("identifier: %s", t.str); break;
-
 	case STR:     printf("string: %s", t.str);     break;
-
 	case COL:     printf(",");                     break;
-
 	case DOT:     printf(".");                     break;
-
 	case ARR:     printf("->");                    break;
-
 	case LOW:     printf("<");                     break;
-
 	case MOD:     printf("%%");                    break;
-
 	case PLUS:    printf("+");                     break;
-
 	case GREAT:   printf(">");                     break;
-
 	case EQUAL:   printf("=");                     break;
-
 	case MINUS:   printf("-");                     break;
-
 	case TIMES:   printf("*");                     break;
-
 	case BACKS:   printf("\\");                    break;
-
 	case EXCLAM:  printf("!");                     break;
-
 	case DIVISE:  printf("/");                     break;
-
 	case INFIXL:  printf("infixl");                break;
-
 	case INFIXR:  printf("infixr");                break;
-
 	case LPARENT: printf("(");                     break;
-
 	case RPARENT: printf(")");                     break;
-
 	case SEMICOL: printf(";");                     break;
-
+	case MINDENT: printf("<<");                    break;
+	case PINDENT: printf(">>");                    break;
 	case END:     printf("END");                   break;
 	}
 }
@@ -1526,7 +1488,6 @@ print_expr(struct expr expr, int tab)
 	case INT:
 		printf("number: %d\n", expr.num);
 		break;
-
 	case FUN_CALL:
 		printf("function call:\n");
 		print_expr(*expr.fun_call.fun, tab + 2);
@@ -1534,11 +1495,9 @@ print_expr(struct expr expr, int tab)
 		printf("args:\n");
 		print_elist(expr.fun_call.args, tab + 2);
 		break;
-
 	case VAR:
 		printf("variable: %s\n", expr.var);
 		break;
-
 	case LETIN:
 		printf("let\n");
 		print_decllist(expr.letin.decl, tab + 2);
@@ -1546,13 +1505,11 @@ print_expr(struct expr expr, int tab)
 		printf("in\n");
 		print_elist(expr.letin.expr, tab + 2);
 		break;
-
 	case BINOP:
 		printf("binop: %s\n", op_to_char(expr.binop.op));
 		print_expr(*expr.binop.left, tab + 2);
 		print_expr(*expr.binop.right, tab + 2);
 		break;
-
 	case IF_CLAUSE:
 		printf("if: \n");
 		print_expr(*expr.if_clause.condition, tab + 2);
@@ -1564,7 +1521,6 @@ print_expr(struct expr expr, int tab)
 			printf("else: \n");
 			print_elist(expr.if_clause.else_expr, tab + 2);
 		}
-
 	case LAM:
 		printf("lambda:\n");
 		print_decl(*expr.lam, tab + 2);
@@ -1861,8 +1817,8 @@ compile_math(char *regl, char *regr, unsigned int op)
 char *
 compile_op(Expr expr, char *reg, SContext *ctx, int ismod)
 {
-	Expr         lexpr;
-	Expr         rexpr;
+	Expr lexpr;
+	Expr rexpr;
 	unsigned int op;
 	char *       regl;
 	char *       regr;
@@ -1874,8 +1830,7 @@ compile_op(Expr expr, char *reg, SContext *ctx, int ismod)
 		regl = compile_expr(lexpr, ctx, reg, ismod);
 		regr = compile_expr(rexpr, ctx, NULL, 0);
 		cmp_e(regl, regr, op_to_suffix(op));
-	}
-	else {
+	} else {
 		regl = compile_expr(lexpr, ctx, reg, 1);
 		regr = compile_expr(rexpr, ctx, NULL, 0);
 		compile_math(regl, regr, op);
@@ -1904,8 +1859,8 @@ compile_expr(Expr e, SContext *ctx, char *reg, int ismod)
 
 	case BINOP: {
 		unsigned int op    = e.binop.op;
-		Expr         lexpr = *e.binop.left;
-		Expr         rexpr = *e.binop.right;
+		Expr lexpr = *e.binop.left;
+		Expr rexpr = *e.binop.right;
 		if (rexpr.type == INT) {
 			int num = e.binop.right->num;
 			if (num == 0)
@@ -2003,8 +1958,7 @@ compile_expr(Expr e, SContext *ctx, char *reg, int ismod)
 					if (ismod || reg) {
 						mov(ret_reg, "r12");
 						return ret_reg;
-					}
-					else {
+					} else {
 						free_reg(ret_reg);
 						return "r12";
 					}
@@ -2022,7 +1976,7 @@ compile_expr(Expr e, SContext *ctx, char *reg, int ismod)
 	case LETIN: {
 		DeclList *p       = e.letin.decl;
 		BSSTable *f_table = NULL;
-		int       len     = 0;
+		int len     = 0;
 		while (p) {
 			char *    s        = alloc_bss(8);
 			BSSTable *nf_table = safe_malloc(sizeof(BSSTable));
@@ -2083,13 +2037,13 @@ compile_expr(Expr e, SContext *ctx, char *reg, int ismod)
 	}
 
 	case IF_CLAUSE: {
-		char  label_else[128], label_end[128];
+		char label_else[128], label_end[128];
 		char *ret_reg = reg ? reg : registers[alloc_reg()];
 		sprintf(label_end, "__end%d", ++ndecl);
 		sprintf(label_else, "__else%d", ndecl);
 		if (e.if_clause.condition->type == BINOP) {
-			Expr  lexpr = *e.if_clause.condition->binop.left;
-			Expr  rexpr = *e.if_clause.condition->binop.right;
+			Expr lexpr = *e.if_clause.condition->binop.left;
+			Expr rexpr = *e.if_clause.condition->binop.right;
 			char *regr  = compile_expr(rexpr, ctx, NULL, 0);
 			char *regl  = compile_expr(lexpr, ctx, NULL, 0);
 			fprintf(out,
@@ -2097,8 +2051,7 @@ compile_expr(Expr e, SContext *ctx, char *reg, int ismod)
 			        "j%s %s\n", regl, regr,
 			        op_to_nsuffix(e.if_clause.condition->binop.op),
 			        label_else);
-		}
-		else {
+		} else {
 			char *scratch_reg = compile_expr(*e.if_clause.condition, ctx, NULL, 0);
 			fprintf(out, "cmp %s, 1\n"
 			        "jne %s\n",
@@ -2124,14 +2077,14 @@ compile_closure(Decl d, char *reg, SContext *ctx)
 	unsigned int save_nvar;
 	char *       ret_reg;
 	char *       scratch_reg;
-	char         label[64];
-	char         aft_label[64];
+	char label[64];
+	char aft_label[64];
 	unsigned int len;
 	unsigned int clen;
 	EList *      ap;
 	SContext *   p;
 	SContext *   tctx;
-	int          old_nvar;
+	int old_nvar;
 
 	scratch_reg = registers[alloc_reg()];
 	ret_reg     = reg ? reg : registers[alloc_reg()];
@@ -2160,8 +2113,7 @@ compile_closure(Decl d, char *reg, SContext *ctx)
 	if (p) {
 		while (p->next) p = p->next;
 		p->next = tctx;
-	}
-	else ctx = tctx;
+	} else ctx = tctx;
 	p = ctx;
 	if (nvar > 0) {
 		for (int i = 1; i < nvar; ++i)
@@ -2227,12 +2179,11 @@ compile_decl(Decl decl, SContext *ctx, char *name)
 		char *reg = compile_body(decl.var_decl, ctx, NULL);
 		fprintf(out, "mov [_%s], %s\n", name, reg);
 		free_reg(reg);
-	}
-	else {
-		char   label[64];
-		int    length = 1;
-		int    snvar  = nvar;
-		int    n      = ++ndecl;
+	} else {
+		char label[64];
+		int length = 1;
+		int snvar  = nvar;
+		int n      = ++ndecl;
 		EList *p      = decl.fun_decl.args;
 		sprintf(label, "__decl%d", ++ndecl);
 		fprintf(out, "jmp %s\n"

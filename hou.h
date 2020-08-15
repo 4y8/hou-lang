@@ -5,14 +5,14 @@ typedef struct {
 	enum {LPARENT, RPARENT, IDE, NUM, STR, EQUAL, SEMICOL, COL,
 	      END, ARR, LET, IN, PLUS, MINUS, TIMES, DIVISE, DOT, IF,
 	      ELSE, ELIF, GREAT, LOW, EXTERN, BACKS, EXCLAM, OR, TYPE,
-	      MOD, INFIXL, INFIXR, CASE, OF} type;
+	      MOD, INFIXL, INFIXR, CASE, OF, PINDENT, MINDENT} type;
 
 	union {
 		int   num;
 		char *str;
 	};
-	int                                  cpos;
-	int                                  linum;
+	int                                                    cpos;
+	int                                                    linum;
 } Token;
 
 typedef struct {
