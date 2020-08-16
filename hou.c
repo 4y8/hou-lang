@@ -108,11 +108,11 @@ void
 error(char *msg, int linum, int cpos, Error err_code)
 {
 	char *err_header;
-	int header_size;
-	int slinum;
-	int scpos;
-	int wsize;
-	int c;
+	int   header_size;
+	int   slinum;
+	int   scpos;
+	int   wsize;
+	int   c;
 
 	slinum = linum;
 	scpos  = cpos;
@@ -215,7 +215,7 @@ char *
 lex_while(int (*fun)(int))
 {
 	char *str;
-	int i;
+	int   i;
 
 	i   = 0;
 	str = safe_malloc(256);
@@ -235,26 +235,31 @@ iside(int c)
 	return isalnum(c) || c == '_' || c == '\'';
 }
 
-int indent = 0;
+int indent  = 0;
+int mindent = 0;
 
 Token
 lexer()
 {
 	Token tok;
 
+	if (mindent) {
+		--mindent;
+		return token(MINDENT);
+	}
 	if (used_char() == EOF) return token(END);
 
 	if (isalpha(used_char())) {
-		char *str  = lex_while(iside);
-		int scpos  = cpos;
-		int i      = keyword_to_token(str);
-		int sncpos = cpos;
+		char *str    = lex_while(iside);
+		int   scpos  = cpos;
+		int   i      = keyword_to_token(str);
+		int   sncpos = cpos;
 		cpos = scpos;
 		if (i == -1) tok = token_str(str);
 		else tok = token(i);
 		cpos = sncpos + 1;
 	} else if (isdigit(used_char())) {
-		int scpos = cpos;
+		int   scpos = cpos;
 		char *str   = lex_while(isdigit);
 		cpos = scpos + 1;
 		tok  = token_num(atoi(str));
@@ -266,19 +271,25 @@ lexer()
 			switch (used_char()) {
 			case '\n': {
 				char c;
-				int nindent;
+				int  nindent;
 				++linum;
-				cpos = 0;
+				cpos    = 0;
 				nindent = 0;
 				while ((c = next_char()) == ' ' || c == '\t') {
+					++cpos;
 					if (c == ' ') ++nindent;
 					else nindent += 8;
-
 				}
-				if (nindent == indent) tok = lexer();
-				else if (nindent > indent) tok = token(PINDENT);
-				else if (nindent < indent) tok = token(MINDENT);
-				indent = nindent;
+				if (nindent == indent)
+					tok = lexer();
+				else if (nindent > indent)
+					tok = token(PINDENT);
+				else if (nindent < indent) {
+					mindent = (indent - nindent - 1) >> 8;
+					tok     = token(MINDENT);
+				}
+				indent       = nindent;
+				unsused_char = used_char();
 				break;
 			}
 			case ' ':
@@ -367,7 +378,7 @@ parse_expr()
 		*expr = (Expr){.type = INT, .num = tok.num};
 		break;
 	case LET: {
-		DeclList l;
+		DeclList  l;
 		DeclList *p;
 		p = &l;
 		while (!peek(IN)) {
@@ -403,7 +414,7 @@ parse_expr()
 		break;
 	case CASE: {
 		Expr * arg = parse_rel();
-		EList body;
+		EList  body;
 		EList *p;
 		char * fun;
 
@@ -437,7 +448,7 @@ parse_expr()
 EList *
 parse_body()
 {
-	EList body;
+	EList  body;
 	EList *p;
 
 	p = &body;
@@ -485,7 +496,7 @@ parse_fun()
 	e = parse_expr();
 	while (peek(LPARENT)) {
 		Expr * expr = safe_malloc(sizeof(Expr));
-		EList args;
+		EList  args;
 		EList *p;
 		p = &args;
 		while (!peek(RPARENT)) {
@@ -519,7 +530,7 @@ Expr *
 parse_op(Expr * (*fun)(), OpTable *ops, int nop)
 {
 	Expr *e;
-	int i;
+	int   i;
 
 	e = fun();
 	for (;;) {
@@ -563,7 +574,6 @@ parse_rel()
 		else if (peek(EXCLAM) && peek(EQUAL))
 			e = binop(e, parse_add(), OP_NEQUAL);
 		else return e;
-
 	}
 }
 
@@ -587,11 +597,9 @@ parse_type(unsigned int sep)
 				error("Unknown type.", tok.linum, tok.cpos,
 				      TYPE_ERROR);
 			break;
-
 		case NUM:
 			t = tvar(tok.num);
 			break;
-
 		case ARR:
 			return tfun(t, parse_type(sep));
 
@@ -607,7 +615,7 @@ parse_type(unsigned int sep)
 EList *
 parse_arg(unsigned int sep)
 {
-	EList args;
+	EList  args;
 	EList *p;
 
 	if (peek(sep)) return NULL;
@@ -701,7 +709,7 @@ append(EList *l1, EList *l2)
 EList *
 make_dummy_vars(int length)
 {
-	EList l;
+	EList  l;
 	EList *p;
 
 	p = &l;
@@ -754,8 +762,8 @@ EList *
 build_arg_copy(EList *l)
 {
 	EList *p;
-	EList r;
-	int i;
+	EList  r;
+	int    i;
 
 	i = 0;
 	p = &r;
@@ -773,8 +781,8 @@ build_arg_copy(EList *l)
 DeclList *
 type_decls_to_decls(TDeclList *l, int length)
 {
-	int i;
-	DeclList dl;
+	int       i;
+	DeclList  dl;
 	DeclList *p;
 
 	i = 1;
@@ -801,7 +809,9 @@ type_decls_to_decls(TDeclList *l, int length)
 		                            make_underscore_l()),
 		                     make_dummy_vars(length - i));
 		*bp->expr.lam =
-			(Decl){.type          = FUN_DECL, .fun_decl.args = args, .name = "",
+			(Decl){.type          = FUN_DECL,
+			       .name          = "",
+			       .fun_decl.args = args,
 			       .fun_decl.body = make_underscore_app(cargs)};
 		l = l->next;
 		++i;
@@ -853,7 +863,7 @@ type_decls_to_ctx(TDeclList *t, int len, IList *bind, char *tname)
 {
 	TDeclList *p;
 	PList *    pp;
-	PList l;
+	PList      l;
 	Subst *    s;
 	Type *     ft;
 	char *     scase;
@@ -890,8 +900,8 @@ DeclList *
 parse_top_level()
 {
 	DeclList *ret;
-	Decl decl;
-	Token tok;
+	Decl      decl;
+	Token     tok;
 
 	ret = safe_malloc(sizeof(DeclList));
 	tok = next_token();
@@ -915,7 +925,7 @@ parse_top_level()
 		init_ctx = add_ctx(init_ctx, tok.str, gen(parse_type(DOT)));
 		return NULL;
 	} else if (tok.type == TYPE) {
-		TDeclList t;
+		TDeclList  t;
 		TDeclList *p    = &t;
 		char *     name = extract_type_name();
 		add_type(name);
@@ -941,7 +951,7 @@ DeclList *
 parse_program()
 {
 	DeclList *p;
-	DeclList decls;
+	DeclList  decls;
 
 	decls.next = NULL;
 	unused_tok = token(END);
@@ -1243,7 +1253,7 @@ infer(Expr expr, Context *ctx)
 		TypeReturn ft = infer(*expr.fun_call.fun, ctx);
 		app_subst_ctx(ft.subst, ctx);
 		/* Get number of arguments */
-		int length = 0;
+		int    length = 0;
 		EList *p      = expr.fun_call.args;
 		while (p) {
 			++length;
@@ -1803,13 +1813,9 @@ compile_math(char *regl, char *regr, unsigned int op)
 {
 	switch (op) {
 	case OP_MOD:    div_op("rdx", regl, regr);                 break;
-
 	case OP_PLUS:   fprintf(out, "add %s, %s\n", regl, regr);  break;
-
 	case OP_MINUS:  fprintf(out, "sub %s, %s\n", regl, regr);  break;
-
 	case OP_TIMES:  fprintf(out, "imul %s, %s\n", regl, regr); break;
-
 	case OP_DIVISE: div_op("rax", regl, regr);                 break;
 	}
 }
@@ -1817,8 +1823,8 @@ compile_math(char *regl, char *regr, unsigned int op)
 char *
 compile_op(Expr expr, char *reg, SContext *ctx, int ismod)
 {
-	Expr lexpr;
-	Expr rexpr;
+	Expr         lexpr;
+	Expr         rexpr;
 	unsigned int op;
 	char *       regl;
 	char *       regr;
@@ -1856,11 +1862,10 @@ compile_expr(Expr e, SContext *ctx, char *reg, int ismod)
 			     ret_reg);
 		return ret_reg;
 	}
-
 	case BINOP: {
 		unsigned int op    = e.binop.op;
-		Expr lexpr = *e.binop.left;
-		Expr rexpr = *e.binop.right;
+		Expr         lexpr = *e.binop.left;
+		Expr         rexpr = *e.binop.right;
 		if (rexpr.type == INT) {
 			int num = e.binop.right->num;
 			if (num == 0)
@@ -1976,7 +1981,7 @@ compile_expr(Expr e, SContext *ctx, char *reg, int ismod)
 	case LETIN: {
 		DeclList *p       = e.letin.decl;
 		BSSTable *f_table = NULL;
-		int len     = 0;
+		int       len     = 0;
 		while (p) {
 			char *    s        = alloc_bss(8);
 			BSSTable *nf_table = safe_malloc(sizeof(BSSTable));
@@ -2037,13 +2042,13 @@ compile_expr(Expr e, SContext *ctx, char *reg, int ismod)
 	}
 
 	case IF_CLAUSE: {
-		char label_else[128], label_end[128];
+		char  label_else[128], label_end[128];
 		char *ret_reg = reg ? reg : registers[alloc_reg()];
 		sprintf(label_end, "__end%d", ++ndecl);
 		sprintf(label_else, "__else%d", ndecl);
 		if (e.if_clause.condition->type == BINOP) {
-			Expr lexpr = *e.if_clause.condition->binop.left;
-			Expr rexpr = *e.if_clause.condition->binop.right;
+			Expr  lexpr = *e.if_clause.condition->binop.left;
+			Expr  rexpr = *e.if_clause.condition->binop.right;
 			char *regr  = compile_expr(rexpr, ctx, NULL, 0);
 			char *regl  = compile_expr(lexpr, ctx, NULL, 0);
 			fprintf(out,
@@ -2077,14 +2082,14 @@ compile_closure(Decl d, char *reg, SContext *ctx)
 	unsigned int save_nvar;
 	char *       ret_reg;
 	char *       scratch_reg;
-	char label[64];
-	char aft_label[64];
+	char         label[64];
+	char         aft_label[64];
 	unsigned int len;
 	unsigned int clen;
 	EList *      ap;
 	SContext *   p;
 	SContext *   tctx;
-	int old_nvar;
+	int          old_nvar;
 
 	scratch_reg = registers[alloc_reg()];
 	ret_reg     = reg ? reg : registers[alloc_reg()];
@@ -2180,10 +2185,10 @@ compile_decl(Decl decl, SContext *ctx, char *name)
 		fprintf(out, "mov [_%s], %s\n", name, reg);
 		free_reg(reg);
 	} else {
-		char label[64];
-		int length = 1;
-		int snvar  = nvar;
-		int n      = ++ndecl;
+		char   label[64];
+		int    length = 1;
+		int    snvar  = nvar;
+		int    n      = ++ndecl;
 		EList *p      = decl.fun_decl.args;
 		sprintf(label, "__decl%d", ++ndecl);
 		fprintf(out, "jmp %s\n"
@@ -2250,9 +2255,20 @@ void
 program(char *prog)
 {
 	DeclList *decl;
+	Token     t;
 
 	in  = fopen(prog, "r");
 	out = fopen("out.asm", "w");
+
+	next_char();
+	do {
+		t = lexer();
+		print_token(t);
+		printf("\n");
+	} while (t.type != END);
+	return;
+
+
 	next_char();
 	linum = 1;
 	cpos  = 1;
