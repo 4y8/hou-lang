@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 main = 
 	if (1 = 2) 
 		if (4 != 3) 
@@ -10,6 +9,3 @@ main =
 			2 
 		else 
 			8
-=======
-main = if (1 = 2) (if (4 != 3) 8 else 7) else (if (0 < 5) 2 else 8)
->>>>>>> dd5c519b08f61623d647eeb02914763f8526b340

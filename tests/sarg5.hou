@@ -1,2 +1,4 @@
-sarg(a) -> a + 2; a
+sarg(a) ->
+	a + 2
+	a
 main = sarg(5)

@@ -387,7 +387,7 @@ parse_expr()
 		}
 		p->next = NULL;
 		*expr   = (Expr){.type       = LETIN, .letin.decl = l.next,
-			         .letin.expr = parse_body()};
+			         .letin.expr = parse_rel()};
 		break;
 	}
 	case IF: {
@@ -397,7 +397,7 @@ parse_expr()
 		assert(RPARENT);
 		*expr = (Expr){.type = IF_CLAUSE,
 			       .if_clause.condition = cond,
-			       .if_clause.if_expr   = parse_body(),
+			       .if_clause.if_expr   = parse_rel(),
 			       .if_clause.else_expr = parse_else()};
 		break;
 	}
@@ -410,7 +410,7 @@ parse_expr()
 		*expr->lam = (Decl){.type          = FUN_DECL,
 			            .name          = "",
 			            .fun_decl.args = parse_arg(ARR),
-			            .fun_decl.body = parse_body()};
+			            .fun_decl.body = parse_expr()};
 		break;
 	case CASE: {
 		Expr * arg = parse_rel();
@@ -463,29 +463,22 @@ parse_body()
 	return body.next;
 }
 
-EList *
+Expr *
 parse_else()
 {
-	if (peek(ELSE)) {
-		EList *body;
-		body = parse_body();
-		assert(DOT);
-		return body;
-	} else if (peek(ELIF)) {
-		EList *body = safe_malloc(sizeof(EList));
-		body->next = NULL;
+	if (peek(ELSE))
+		return parse_rel();
+	else if (peek(ELIF)) {
+		Expr *expr = malloc(sizeof(Expr));
 		assert(LPARENT);
 		Expr *cond = parse_rel();
 		assert(RPARENT);
-		body->expr = (Expr){.type = IF_CLAUSE,
-			            .if_clause.condition = cond,
-			            .if_clause.if_expr   = parse_body(),
-			            .if_clause.else_expr = parse_else()};
-		return body;
-	} else if (peek(DOT)) return NULL;
-	else error("Unexpected token.", act_token().linum, act_token().cpos,
-		   SYNTAX_ERROR);
-	return NULL;
+		*expr = (Expr){.type = IF_CLAUSE,
+			       .if_clause.condition = cond,
+			       .if_clause.if_expr   = parse_rel(),
+			       .if_clause.else_expr = parse_else()};
+		return expr;
+	} else return NULL;
 }
 
 Expr *
@@ -801,14 +794,13 @@ type_decls_to_decls(TDeclList *l, int length)
 				(Decl){.type     = VAR_DECL,
 				       .name     = l->t.name,
 				       .var_decl = safe_malloc(sizeof(EList))};
-		EList *bp = l->t.args ? p->decl.fun_decl.body : p->decl.var_decl;
-		bp->next = NULL;
-		bp->expr =
+		Expr *bp = l->t.args ? p->decl.fun_decl.body : p->decl.var_decl;
+		*bp =
 			(Expr){.type = LAM, .lam = safe_malloc(sizeof(Decl))};
 		EList *args = append(append(make_dummy_vars(i - 1),
 		                            make_underscore_l()),
 		                     make_dummy_vars(length - i));
-		*bp->expr.lam =
+		*bp->lam =
 			(Decl){.type          = FUN_DECL,
 			       .name          = "",
 			       .fun_decl.args = args,
@@ -1268,24 +1260,22 @@ infer(Expr expr, Context *ctx)
 		tp.type  = app_subst(s_type, tp.subst);
 		break;
 	}
-
 	case LETIN: {
-		tp = infer_body(expr.letin.expr,
-		                infer_decls(expr.letin.decl, ctx));
+		tp = infer(*expr.letin.expr,
+		           infer_decls(expr.letin.decl, ctx));
 		break;
 	}
-
 	case IF_CLAUSE: {
 		TypeReturn tcond = infer(*expr.if_clause.condition, ctx);
 		tp.subst = unify(tcond.type, tlit("Bool"));
 		tp.subst = compose_subst(tp.subst, tcond.subst);
 		app_subst_ctx(tp.subst, ctx);
-		TypeReturn tif = infer_body(expr.if_clause.if_expr, ctx);
+		TypeReturn tif = infer(*expr.if_clause.if_expr, ctx);
 		tp.subst = compose_subst(tp.subst, tif.subst);
 		app_subst_ctx(tp.subst, ctx);
 		if (expr.if_clause.else_expr) {
 			TypeReturn telse =
-				infer_body(expr.if_clause.else_expr, ctx);
+				infer(*expr.if_clause.else_expr, ctx);
 			tp.subst = compose_subst(tp.subst, telse.subst);
 			tp.subst = compose_subst(tp.subst, unify(tif.type,
 			                                         telse.type));
@@ -1297,11 +1287,19 @@ infer(Expr expr, Context *ctx)
 		}
 		break;
 	}
-
 	case LAM:
 		tp = infer_decl(*expr.lam, ctx);
 		break;
+	case BODY:
+		while (expr.body) {
+			TypeReturn inf = infer(expr.body->expr, ctx);
+			tp.subst = compose_subst(tp.subst, inf.subst);
+			tp.type  = inf.type;
+			app_subst_ctx(tp.subst, ctx);
+			expr.body = expr.body->next;
+		}
 	}
+
 	return tp;
 }
 
@@ -1340,9 +1338,8 @@ infer_decl(Decl decl, Context *ctx)
 	tp.subst = NULL;
 	switch (decl.type) {
 	case VAR_DECL:
-		tp = infer_body(decl.var_decl, ctx);
+		tp = infer(*decl.var_decl, ctx);
 		break;
-
 	case FUN_DECL: {
 		EList *p         = decl.fun_decl.args;
 		Type * decl_type = tvar(++nvar);
@@ -1352,7 +1349,7 @@ infer_decl(Decl decl, Context *ctx)
 			              scheme(NULL, tvar(++nvar)));
 			p = p->next;
 		}
-		TypeReturn bt = infer_body(decl.fun_decl.body, ctx);
+		TypeReturn bt = infer(*decl.fun_decl.body, ctx);
 		app_subst_ctx(bt.subst, ctx);
 		tp.subst = bt.subst;
 		int len = 0;
@@ -1491,7 +1488,7 @@ print_token(Token t)
 }
 
 void
-print_expr(struct expr expr, int tab)
+print_expr(Expr expr, int tab)
 {
 	print_tab(tab);
 	switch (expr.type) {
@@ -1513,7 +1510,7 @@ print_expr(struct expr expr, int tab)
 		print_decllist(expr.letin.decl, tab + 2);
 		print_tab(tab);
 		printf("in\n");
-		print_elist(expr.letin.expr, tab + 2);
+		print_expr(*expr.letin.expr, tab + 2);
 		break;
 	case BINOP:
 		printf("binop: %s\n", op_to_char(expr.binop.op));
@@ -1525,16 +1522,21 @@ print_expr(struct expr expr, int tab)
 		print_expr(*expr.if_clause.condition, tab + 2);
 		print_tab(tab);
 		printf("then: \n");
-		print_elist(expr.if_clause.if_expr, tab + 2);
+		print_expr(*expr.if_clause.if_expr, tab + 2);
 		if (expr.if_clause.else_expr) {
 			print_tab(tab);
 			printf("else: \n");
-			print_elist(expr.if_clause.else_expr, tab + 2);
+			print_expr(*expr.if_clause.else_expr, tab + 2);
 		}
 	case LAM:
 		printf("lambda:\n");
 		print_decl(*expr.lam, tab + 2);
 		break;
+	case BODY:
+		while (expr.body) {
+			print_expr(expr.body->expr, tab);
+			expr.body = expr.body->next;
+		}
 	}
 }
 
@@ -1548,12 +1550,11 @@ print_decl(struct decl decl, int tab)
 		print_elist(decl.fun_decl.args, tab + 2);
 		print_tab(tab);
 		printf("body:\n");
-		print_elist(decl.fun_decl.body, tab + 2);
+		print_expr(*decl.fun_decl.body, tab + 2);
 		break;
-
 	case VAR_DECL:
 		printf("variable: %s\n", decl.name);
-		print_elist(decl.var_decl, tab + 2);
+		print_expr(*decl.var_decl, tab + 2);
 		break;
 	}
 }
@@ -1977,7 +1978,6 @@ compile_expr(Expr e, SContext *ctx, char *reg, int ismod)
 		fprintf(out, "mov %s, [_%s]\n", ret_reg, e.var);
 		return ret_reg;
 	}
-
 	case LETIN: {
 		DeclList *p       = e.letin.decl;
 		BSSTable *f_table = NULL;
@@ -2003,12 +2003,11 @@ compile_expr(Expr e, SContext *ctx, char *reg, int ismod)
 			p = p->next;
 			++len;
 		}
-		char *ret_reg = compile_body(e.letin.expr, ctx, reg);
+		char *ret_reg = compile_expr(*e.letin.expr, ctx, reg, 0);
 		fprintf(out, "add rsp, %d\n", len << 3);
 		nvar -= len;
 		return ret_reg;
 	}
-
 	case FUN_CALL: {
 		int length = 0;
 		/* Saves registers. */
@@ -2061,17 +2060,25 @@ compile_expr(Expr e, SContext *ctx, char *reg, int ismod)
 			fprintf(out, "cmp %s, 1\n"
 			        "jne %s\n",
 			        scratch_reg, label_else);
-		} compile_body(e.if_clause.if_expr, ctx, ret_reg);
+		} compile_expr(*e.if_clause.if_expr, ctx, ret_reg, 0);
 		fprintf(out, "jmp %s\n", label_end);
 		fprintf(out, "%s:\n", label_else);
 		if (e.if_clause.else_expr)
-			compile_body(e.if_clause.else_expr, ctx, ret_reg);
+			compile_expr(*e.if_clause.else_expr, ctx, ret_reg, 0);
 		fprintf(out, "%s:\n", label_end);
 		return ret_reg;
 	}
-
 	case LAM:
 		return compile_closure(*e.lam, reg, ctx);
+
+	case BODY: {
+		char *s;
+		while (e.body) {
+			s = compile_expr(e.body->expr, ctx, reg, 0);
+			if (e.body->next) free_reg(s);
+			e.body = e.body->next;
+		}
+	}
 	}
 	return "";
 }
@@ -2142,7 +2149,7 @@ compile_closure(Decl d, char *reg, SContext *ctx)
 		p       = p->next;
 	}
 	++nvar;
-	compile_body(d.fun_decl.body, ctx, "rax");
+	compile_expr(*d.fun_decl.body, ctx, "rax", 0);
 	if (old_nvar > 0)
 		fprintf(out, "add rsp, %d\n", old_nvar << 3);
 	fprintf(out, "ret\n");
@@ -2181,7 +2188,7 @@ compile_decl(Decl decl, SContext *ctx, char *name)
 {
 	add_bss(name, 8);
 	if (decl.type == VAR_DECL) {
-		char *reg = compile_body(decl.var_decl, ctx, NULL);
+		char *reg = compile_expr(*decl.var_decl, ctx, NULL, 0);
 		fprintf(out, "mov [_%s], %s\n", name, reg);
 		free_reg(reg);
 	} else {
@@ -2199,7 +2206,7 @@ compile_decl(Decl decl, SContext *ctx, char *name)
 			p = p->next;
 		}
 		++nvar;
-		compile_body(decl.fun_decl.body, ctx, "rax");
+		compile_expr(*decl.fun_decl.body, ctx, "rax", 0);
 		fprintf(out, "ret\n"
 		        "%s:\n", label);
 		char *temp = alloc_bss(8);

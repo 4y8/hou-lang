@@ -31,11 +31,10 @@ typedef struct op_table {
 } OpTable;
 
 typedef struct expr {
-<<<<<<< HEAD
 	union {
 		struct {
 			struct decllist *decl;
-			struct elist *   expr;
+			struct expr *    expr;
 		}            letin;
 		struct {
 			struct expr * fun;
@@ -49,48 +48,21 @@ typedef struct expr {
 			      OP_MOD} op;
 		}            binop;
 		struct {
-			struct expr * condition;
-			struct elist *if_expr;
-			struct elist *else_expr;
+			struct expr *condition;
+			struct expr *if_expr;
+			struct expr *else_expr;
 		}            if_clause;
 		struct decl *lam;
 		char *       var;
 		int          num;
 	};
-	enum {FUN_CALL, INT, VAR, LETIN, BINOP, IF_CLAUSE, LAM} type;
-	int                                                     cpos;
-	int                                                     linum;
-=======
-        union {
-                struct {
-                        struct decllist *decl;
-                        struct elist *expr;
-                } letin;
-                struct {
-                        struct expr *fun;
-                        struct elist *args;
-                } fun_call;
-                struct {
-                        struct expr *left;
-                        struct expr *right;
-                        enum { OP_PLUS, OP_MINUS, OP_TIMES, OP_DIVISE, OP_LOW,
-                               OP_GREAT, OP_LOWE, OP_GREATE, OP_EQUAL, OP_NEQUAL,
-                               OP_MOD} op;
-                } binop;
-                struct {
-                        struct expr *condition;
-                        struct elist *if_expr;
-                        struct elist *else_expr;
-                } if_clause;
-                struct decl *lam;
-                char        *var;
-		int          num;
-		Elist      *body;
-        };
-        enum { FUN_CALL, INT, VAR, LETIN, BINOP, IF_CLAUSE, LAM, BODY } type;
-        int cpos;
-        int linum;
->>>>>>> dd5c519b08f61623d647eeb02914763f8526b340
+	enum {
+		FUN_CALL, INT, VAR, LETIN,
+		BINOP, IF_CLAUSE, LAM, BODY
+	}             type;
+	struct elist *body;
+	int           cpos;
+	int           linum;
 } Expr;
 
 typedef struct elist {
@@ -102,9 +74,9 @@ typedef struct decl {
 	union {
 		struct {
 			EList *args;
-			EList *body;
-		}      fun_decl;
-		EList *var_decl;
+			Expr * body;
+		}     fun_decl;
+		Expr *var_decl;
 	};
 	char *                    name;
 	enum {FUN_DECL, VAR_DECL} type;
@@ -219,14 +191,14 @@ Expr *parse_rel();
 Expr *parse_add();
 Expr *parse_mul();
 Expr *parse_fun();
-EList *parse_else();
+Expr *parse_else();
 EList *parse_arg(unsigned int);
 EList *parse_body();
 DeclList *parse_top_level();
 DeclList *parse_program();
 
-int       is_type(char *);
-void      add_type(char *);
+int is_type(char *);
+void add_type(char *);
 char *extract_type_name();
 Type *parse_type();
 Expr *make_underscore();
@@ -234,7 +206,7 @@ EList *append(EList *, EList *);
 EList *make_dummy_vars(int);
 EList *make_underscore_app(EList *);
 EList *make_underscore_l();
-TypeDecl  parse_type_decl();
+TypeDecl parse_type_decl();
 DeclList *type_decls_to_decls(TDeclList *, int);
 
 int    occurs(IList *, int);
