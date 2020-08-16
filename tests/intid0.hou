@@ -1,2 +1,4 @@
 id(a) -> a
-main = 6; id(0)
+main = 
+	6 
+	id(0)

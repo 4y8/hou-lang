@@ -31,6 +31,7 @@ typedef struct op_table {
 } OpTable;
 
 typedef struct expr {
+<<<<<<< HEAD
 	union {
 		struct {
 			struct decllist *decl;
@@ -59,6 +60,37 @@ typedef struct expr {
 	enum {FUN_CALL, INT, VAR, LETIN, BINOP, IF_CLAUSE, LAM} type;
 	int                                                     cpos;
 	int                                                     linum;
+=======
+        union {
+                struct {
+                        struct decllist *decl;
+                        struct elist *expr;
+                } letin;
+                struct {
+                        struct expr *fun;
+                        struct elist *args;
+                } fun_call;
+                struct {
+                        struct expr *left;
+                        struct expr *right;
+                        enum { OP_PLUS, OP_MINUS, OP_TIMES, OP_DIVISE, OP_LOW,
+                               OP_GREAT, OP_LOWE, OP_GREATE, OP_EQUAL, OP_NEQUAL,
+                               OP_MOD} op;
+                } binop;
+                struct {
+                        struct expr *condition;
+                        struct elist *if_expr;
+                        struct elist *else_expr;
+                } if_clause;
+                struct decl *lam;
+                char        *var;
+		int          num;
+		Elist      *body;
+        };
+        enum { FUN_CALL, INT, VAR, LETIN, BINOP, IF_CLAUSE, LAM, BODY } type;
+        int cpos;
+        int linum;
+>>>>>>> dd5c519b08f61623d647eeb02914763f8526b340
 } Expr;
 
 typedef struct elist {

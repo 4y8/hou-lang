@@ -1,5 +1,5 @@
 gcd(a, b) -> 
 	if (b = 0) a
-	else gcd(b, a % b).
+	else gcd(b, a % b)
 
 main = gcd(5, 15)

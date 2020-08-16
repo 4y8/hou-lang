@@ -1,1 +1,1 @@
-main = if (3 = 3) 3 else 9.
+main = if (3 = 3) 3 else 9

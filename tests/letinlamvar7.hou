@@ -1,2 +1,6 @@
-var = let a = 4 b = 7 in \x -> b
+var = 
+	let 
+		a = 4 
+		b = 7 
+	in \x -> b
 main = var(5)

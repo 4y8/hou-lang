@@ -1,1 +1,1 @@
-main = if (5 > 4) 6 else 4. 
+main = if (5 > 4) 6 else 4

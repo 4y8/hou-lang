@@ -1,4 +1,4 @@
 collatz(n) -> 
 	if (is_even(n)) n / 2
-	else 3 * n + 1.
+	else 3 * n + 1
 main = collatz(1)

@@ -2,5 +2,4 @@ main =
 	let 
 	    a = 6
 	    id(a) -> a
-	in 
-	id(a)
+	in id(a)
