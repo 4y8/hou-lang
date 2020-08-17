@@ -275,17 +275,16 @@ lexer()
 				++linum;
 				cpos    = 0;
 				nindent = 0;
-				while ((c = next_char()) == ' ' || c == '\t') {
+				while ((c = next_char()) == '\t') {
 					++cpos;
-					if (c == ' ') ++nindent;
-					else nindent += 8;
+					nindent += 8;
 				}
 				if (nindent == indent)
 					tok = lexer();
 				else if (nindent > indent)
 					tok = token(PINDENT);
 				else if (nindent < indent) {
-					mindent = (indent - nindent - 1) >> 3;
+					mindent = (indent - nindent - 8) >> 3;
 					tok     = token(MINDENT);
 				}
 				indent       = nindent;
@@ -381,10 +380,17 @@ parse_expr()
 		DeclList  l;
 		DeclList *p;
 		p = &l;
-		while (!peek(IN)) {
+		if (peek(PINDENT))
+			while (!peek(MINDENT)) {
+				p->next = parse_top_level();
+				while (p->next) p = p->next;
+			}
+		else {
+			l.next  = safe_malloc(sizeof(DeclList));
 			p->next = parse_top_level();
 			while (p->next) p = p->next;
 		}
+		assert(IN);
 		p->next = NULL;
 		*expr   = (Expr){.type       = LETIN, .letin.decl = l.next,
 			         .letin.expr = parse_rel()};
@@ -410,22 +416,21 @@ parse_expr()
 		*expr->lam = (Decl){.type          = FUN_DECL,
 			            .name          = "",
 			            .fun_decl.args = parse_arg(ARR),
-			            .fun_decl.body = parse_expr()};
+			            .fun_decl.body = parse_rel()};
 		break;
 	case CASE: {
 		Expr * arg = parse_rel();
 		EList  body;
 		EList *p;
 		char * fun;
-
 		p = &body;
 		assert(OF);
 		fun = safe_malloc(256);
 		strcpy(fun, "|");
 		while (!peek(DOT)) {
-			p->next       = safe_malloc(sizeof(EList));
-			p->next->expr = *parse_rel();
-			p             = p->next;
+			p->next = safe_malloc(sizeof(EList));
+			p       = p->next;
+			p->expr = *parse_rel();
 			if (p->expr.type == FUN_CALL)
 				strcat(fun, p->expr.fun_call.fun->var);
 			else if (p->expr.type == VAR)
@@ -433,6 +438,21 @@ parse_expr()
 		}
 		p->next = NULL;
 		p       = body.next;
+		break;
+	}
+	case PINDENT: {
+		EList  body;
+		EList *p;
+		p = &body;
+		while (!peek(MINDENT)) {
+			p->next = safe_malloc(sizeof(EList));
+			p       = p->next;
+			p->expr = *parse_rel();
+		}
+		*expr = (Expr){
+			.type = BODY,
+			.body = body.next
+		};
 		break;
 	}
 	default:
@@ -1135,7 +1155,8 @@ unify(Type *t1, Type *t2)
 		Subst *s2 = unify(app_subst(t1->fun.right, s1),
 		                  app_subst(t2->fun.right, s1));
 		s = compose_subst(s1, s2);
-	} else error("Can't unify types", cpos, linum, TYPE_ERROR);
+	} else
+		error("Can't unify types", cpos, linum, TYPE_ERROR);
 	return s;
 }
 
@@ -1211,11 +1232,9 @@ infer(Expr expr, Context *ctx)
 	case INT:
 		tp.type = tlit("Int");
 		break;
-
 	case VAR:
 		tp.type = inst(find_ctx(expr.var, ctx));
 		break;
-
 	case BINOP: {
 		TypeReturn r = infer(*expr.binop.right, ctx);
 		app_subst_ctx(r.subst, ctx);
@@ -1239,7 +1258,6 @@ infer(Expr expr, Context *ctx)
 		}
 		break;
 	}
-
 	case FUN_CALL: {
 		TypeReturn ft = infer(*expr.fun_call.fun, ctx);
 		app_subst_ctx(ft.subst, ctx);
@@ -1348,7 +1366,6 @@ infer_decl(Decl decl, Context *ctx)
 			              scheme(NULL, tvar(++nvar)));
 			p = p->next;
 		}
-		print_decl(decl, 0);
 		TypeReturn bt = infer(*decl.fun_decl.body, ctx);
 		app_subst_ctx(bt.subst, ctx);
 		tp.subst = bt.subst;
@@ -1570,15 +1587,12 @@ print_type(Type t)
 		print_type(*t.fun.right);
 		printf(")");
 		break;
-
 	case TLIT:
 		printf("%s", t.lit);
 		break;
-
 	case TVAR:
 		printf("%d", t.var);
 		break;
-
 	case TPAR:
 		print_type(*t.fun.left);
 		printf(" ");
@@ -1955,7 +1969,6 @@ compile_expr(Expr e, SContext *ctx, char *reg, int ismod)
 		}
 		return compile_op(e, reg, ctx, ismod);
 	}
-
 	case VAR: {
 		char *ret_reg = reg ? reg : registers[alloc_reg()];
 		while (ctx) {
@@ -2039,7 +2052,6 @@ compile_expr(Expr e, SContext *ctx, char *reg, int ismod)
 		if (!reg || strcmp(reg, "rax")) pop("rax");
 		return ret_reg;
 	}
-
 	case IF_CLAUSE: {
 		char  label_else[128], label_end[128];
 		char *ret_reg = reg ? reg : registers[alloc_reg()];
@@ -2078,6 +2090,7 @@ compile_expr(Expr e, SContext *ctx, char *reg, int ismod)
 			if (e.body->next) free_reg(s);
 			e.body = e.body->next;
 		}
+		return s;
 	}
 	}
 	return "";
@@ -2274,10 +2287,7 @@ program(char *prog)
 	add_type("Unit");
 	add_type("Bool");
 	decl = parse_program();
-
 	infer_decls(decl, init_ctx);
-
-	print_ctx(init_type_ctx);
 	fprintf(out, "%s", prolog);
 	compile_decls(decl);
 	fprintf(out, "mov rdi, [_main]\n");
