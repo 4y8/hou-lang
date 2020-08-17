@@ -726,18 +726,17 @@ make_underscore()
 	return e;
 }
 
-EList *
+Expr *
 make_underscore_app(EList *arg)
 {
-	EList *e;
+	Expr *e;
 
-	e = safe_malloc(sizeof(EList));
+	e = safe_malloc(sizeof(Expr));
 	if (arg)
-		e->expr = (Expr){.type          = FUN_CALL,
-			         .fun_call.fun  = make_underscore(),
-			         .fun_call.args = arg};
-	else e->expr = *make_underscore();
-	e->next = NULL;
+		*e = (Expr){.type          = FUN_CALL,
+			    .fun_call.fun  = make_underscore(),
+			    .fun_call.args = arg};
+	else *e = *make_underscore();
 	return e;
 }
 
@@ -905,11 +904,11 @@ parse_top_level()
 			assert(ARR);
 			decl = (Decl){.type          = FUN_DECL,
 				      .fun_decl.args = args,
-				      .fun_decl.body = parse_body(),
+				      .fun_decl.body = parse_rel(),
 				      .name          = name};
 		} else if (tok.type == EQUAL)
 			decl = (Decl){.type     = VAR_DECL, .name = name,
-				      .var_decl = parse_body()};
+				      .var_decl = parse_rel()};
 		else error("Unexpected token.", act_token().linum,
 			   act_token().cpos, SYNTAX_ERROR);
 	} else if (tok.type == EXTERN) {
@@ -1349,6 +1348,7 @@ infer_decl(Decl decl, Context *ctx)
 			              scheme(NULL, tvar(++nvar)));
 			p = p->next;
 		}
+		print_decl(decl, 0);
 		TypeReturn bt = infer(*decl.fun_decl.body, ctx);
 		app_subst_ctx(bt.subst, ctx);
 		tp.subst = bt.subst;
@@ -2266,16 +2266,6 @@ program(char *prog)
 
 	in  = fopen(prog, "r");
 	out = fopen("out.asm", "w");
-
-	next_char();
-	do {
-		t = lexer();
-		print_token(t);
-		printf("\n");
-	} while (t.type != END);
-	return;
-
-
 	next_char();
 	linum = 1;
 	cpos  = 1;
@@ -2284,7 +2274,9 @@ program(char *prog)
 	add_type("Unit");
 	add_type("Bool");
 	decl = parse_program();
+
 	infer_decls(decl, init_ctx);
+
 	print_ctx(init_type_ctx);
 	fprintf(out, "%s", prolog);
 	compile_decls(decl);

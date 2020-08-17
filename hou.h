@@ -204,7 +204,7 @@ Type *parse_type();
 Expr *make_underscore();
 EList *append(EList *, EList *);
 EList *make_dummy_vars(int);
-EList *make_underscore_app(EList *);
+Expr *make_underscore_app(EList *);
 EList *make_underscore_l();
 TypeDecl parse_type_decl();
 DeclList *type_decls_to_decls(TDeclList *, int);

@@ -2,12 +2,12 @@ extern True Bool.
 extern False Bool.
 extern print_int Int -> Unit.
 
-max(a, b) -> if (a > b) a else b.
-min(a, b) -> if (a < b) a else b.
+max(a, b) -> if (a > b) a else b
+min(a, b) -> if (a < b) a else b
 
-and(a, b) -> if (a) b else a.
-or(a, b) -> if(a) a else b.
-not(a) -> if (a) False else True.
+and(a, b) -> if (a) b else a
+or(a, b) -> if(a) a else b
+not(a) -> if (a) False else True
 
-is_even(n) -> if (n % 2 = 0) True else False.
-is_odd(n) -> if (n % 2 = 1) True else False.
+is_even(n) -> if (n % 2 = 0) True else False
+is_odd(n) -> if (n % 2 = 1) True else False
