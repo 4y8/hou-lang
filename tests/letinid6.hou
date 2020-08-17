@@ -1,5 +1,5 @@
 main = 
 	let 
-	    a = 6
-	    id(a) -> a
+		a = 6
+		id(a) -> a
 	in id(a)

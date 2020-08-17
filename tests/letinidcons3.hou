@@ -1,8 +1,8 @@
 main =
 	let 
-	    cons(a, b) -> a
-	    id(a) -> a
-	    a = 3 
-	    b = 2209 
+		cons(a, b) -> a
+		id(a) -> a
+		a = 3 
+		b = 2209 
 	in
 	id(cons(a, b))
