@@ -167,27 +167,27 @@ error(char *msg, int linum, int cpos, Error err_code)
 }
 
 Token
-token(unsigned int type)
+mktoken(unsigned int type)
 {
 	return (Token){.type = type, .linum = linum, .cpos = cpos};
 }
 
 Token
-token_str(char *str)
+mktoken_str(char *str)
 {
 	Token t;
 
-	t     = token(IDE);
+	t     = mktoken(IDE);
 	t.str = str;
 	return t;
 }
 
 Token
-token_num(int num)
+mktoken_num(int num)
 {
 	Token t;
 
-	t     = token(NUM);
+	t     = mktoken(NUM);
 	t.num = num;
 	return t;
 }
@@ -245,9 +245,9 @@ lexer()
 
 	if (mindent) {
 		--mindent;
-		return token(MINDENT);
+		return mktoken(MINDENT);
 	}
-	if (used_char() == EOF) return token(END);
+	if (used_char() == EOF) return mktoken(END);
 
 	if (isalpha(used_char())) {
 		char *str    = lex_while(iside);
@@ -255,25 +255,25 @@ lexer()
 		int   i      = keyword_to_token(str);
 		int   sncpos = cpos;
 		cpos = scpos;
-		if (i == -1) tok = token_str(str);
-		else tok = token(i);
+		if (i == -1) tok = mktoken_str(str);
+		else tok = mktoken(i);
 		cpos = sncpos + 1;
 	} else if (isdigit(used_char())) {
 		int   scpos = cpos;
 		char *str   = lex_while(isdigit);
 		cpos = scpos + 1;
-		tok  = token_num(atoi(str));
+		tok  = mktoken_num(atoi(str));
 		cpos = scpos;
 	} else {
 		int i = punct_to_token(used_char());
-		if (i != -1) tok = token(i);
+		if (i != -1) tok = mktoken(i);
 		else
 			switch (used_char()) {
 			case '\n': {
 				char c;
 				int  nindent;
 				++linum;
-				cpos    = 0;
+				cpos    = 1;
 				nindent = 0;
 				while ((c = next_char()) == '\t') {
 					++cpos;
@@ -282,10 +282,10 @@ lexer()
 				if (nindent == indent)
 					tok = lexer();
 				else if (nindent > indent)
-					tok = token(PINDENT);
+					tok = mktoken(PINDENT);
 				else if (nindent < indent) {
 					mindent = (indent - nindent - 8) >> 3;
-					tok     = token(MINDENT);
+					tok     = mktoken(MINDENT);
 				}
 				indent       = nindent;
 				unsused_char = used_char();
@@ -301,7 +301,7 @@ lexer()
 				break;
 			case '-':
 				if (next_char() == '>') {
-					tok = token(ARR);
+					tok = mktoken(ARR);
 					++cpos;
 				} else if (used_char() == '-') {
 					while (next_char() != '\n' &&
@@ -309,7 +309,7 @@ lexer()
 					return lexer();
 				} else {
 					unsused_char = used_char();
-					tok          = token(MINUS);
+					tok          = mktoken(MINUS);
 				} break;
 			default: error("Unexecpected charachter", linum, cpos,
 				       UNEXPECTED_CHAR);
@@ -328,7 +328,7 @@ next_token()
 	if (unused_tok.type == END) return act_tok = lexer();
 	else {
 		Token t = unused_tok;
-		unused_tok = token(END);
+		unused_tok = mktoken(END);
 		return t;
 	}
 }
@@ -359,6 +359,20 @@ peek(unsigned int type)
 		return 0;
 	}
 	return 1;
+}
+
+Decl *
+mkfundecl(char *name, EList *args, Expr *body)
+{
+	Decl *d;
+
+	d  = safe_malloc(sizeof(Decl));
+	*d = (Decl){
+		.type          = FUN_DECL,
+		.fun_decl.args = args,
+		.fun_decl.body = body
+	};
+	return d;
 }
 
 Expr *
@@ -425,16 +439,29 @@ parse_expr()
 		char * fun;
 		p = &body;
 		assert(OF);
+		assert(PINDENT);
 		fun = safe_malloc(256);
 		strcpy(fun, "|");
-		while (!peek(DOT)) {
-			p->next = safe_malloc(sizeof(EList));
-			p       = p->next;
-			p->expr = *parse_rel();
-			if (p->expr.type == FUN_CALL)
-				strcat(fun, p->expr.fun_call.fun->var);
-			else if (p->expr.type == VAR)
-				strcat(fun, p->expr.var);
+		while (!peek(MINDENT)) {
+			EList *args = NULL;
+			Expr * body;
+			Expr   e;
+			p = (p->next = safe_malloc(sizeof(EList)));
+			e = *parse_rel();
+			if (e.type == FUN_CALL) {
+				args = e.fun_call.args;
+				strcat(fun, e.fun_call.fun->var);
+			} else if (e.type == VAR)
+				strcat(fun, e.var);
+			assert(ARR);
+			e     = *parse_rel();
+			body  = safe_malloc(sizeof(Expr));
+			*body = (Expr){
+				.type = LAM,
+			};
+			p->expr = (Expr){
+				.type = FUN_CALL,
+			};
 		}
 		p->next = NULL;
 		p       = body.next;
@@ -489,7 +516,7 @@ parse_else()
 	if (peek(ELSE))
 		return parse_rel();
 	else if (peek(ELIF)) {
-		Expr *expr = malloc(sizeof(Expr));
+		Expr *expr = safe_malloc(sizeof(Expr));
 		assert(LPARENT);
 		Expr *cond = parse_rel();
 		assert(RPARENT);
@@ -517,13 +544,14 @@ parse_fun()
 			p->next->expr = *parse_rel();
 			p             = p->next;
 			if (!peek(RPARENT)) assert(COL);
-			else unused_tok = token(RPARENT);
+			else unused_tok = mktoken(RPARENT);
 		}
 		p->next = NULL;
 		*expr   = (Expr){.type          = FUN_CALL, .fun_call.fun = e,
 			         .fun_call.args = args.next,
 			         .linum         = act_token().linum,
-			         .cpos          = act_token().cpos}; e = expr;
+			         .cpos          = act_token().cpos};
+		e = expr;
 	}
 	return e;
 }
@@ -803,17 +831,12 @@ type_decls_to_decls(TDeclList *l, int length)
 		p->next = safe_malloc(sizeof(DeclList));
 		p       = p->next;
 		EList *cargs = build_arg_copy(l->t.args);
-		if (l->t.args)
-			p->decl =
-				(Decl){.type          = FUN_DECL,
-				       .fun_decl.args = cargs,
-				       .name          = l->t.name,
-				       .fun_decl.body = safe_malloc(sizeof(EList))};
-		else p->decl =
-				(Decl){.type     = VAR_DECL,
-				       .name     = l->t.name,
-				       .var_decl = safe_malloc(sizeof(EList))};
-		Expr *bp = l->t.args ? p->decl.fun_decl.body : p->decl.var_decl;
+		p->decl =
+			(Decl){.type          = FUN_DECL,
+			       .fun_decl.args = cargs,
+			       .name          = l->t.name,
+			       .fun_decl.body = safe_malloc(sizeof(EList))};
+		Expr *bp = p->decl.fun_decl.body;
 		*bp =
 			(Expr){.type = LAM, .lam = safe_malloc(sizeof(Decl))};
 		EList *args = append(append(make_dummy_vars(i - 1),
@@ -965,7 +988,7 @@ parse_program()
 	DeclList  decls;
 
 	decls.next = NULL;
-	unused_tok = token(END);
+	unused_tok = mktoken(END);
 	p          = &decls;
 	do {
 		p->next = parse_top_level();

@@ -173,9 +173,9 @@ int keyword_to_token(char *);
 int   is_ide(int);
 char *lex_while(int (*)(int));
 
-Token token(unsigned int);
-Token token_str(char *);
-Token token_num(int);
+Token mktoken(unsigned int);
+Token mktoken_str(char *);
+Token mktoken_num(int);
 Token lexer();
 Token next_token();
 Token act_token();
