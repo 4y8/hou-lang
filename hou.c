@@ -237,6 +237,7 @@ iside(int c)
 
 int indent  = 0;
 int mindent = 0;
+int pindent = 0;
 
 Token
 lexer()
@@ -247,7 +248,13 @@ lexer()
 		--mindent;
 		return mktoken(MINDENT);
 	}
-	if (used_char() == EOF) return mktoken(END);
+	if (used_char() == EOF) {
+		if (pindent) {
+			--pindent;
+			return mktoken(MINDENT);
+		}
+		return mktoken(END);
+	}
 
 	if (isalpha(used_char())) {
 		char *str    = lex_while(iside);
@@ -281,11 +288,13 @@ lexer()
 				}
 				if (nindent == indent)
 					tok = lexer();
-				else if (nindent > indent)
+				else if (nindent > indent) {
 					tok = mktoken(PINDENT);
-				else if (nindent < indent) {
+					++pindent;
+				} else if (nindent < indent) {
 					mindent = (indent - nindent - 8) >> 3;
 					tok     = mktoken(MINDENT);
+					--pindent;
 				}
 				indent       = nindent;
 				unsused_char = used_char();
@@ -369,6 +378,7 @@ mkfundecl(char *name, EList *args, Expr *body)
 	d  = safe_malloc(sizeof(Decl));
 	*d = (Decl){
 		.type          = FUN_DECL,
+		.name          = name,
 		.fun_decl.args = args,
 		.fun_decl.body = body
 	};
@@ -444,27 +454,29 @@ parse_expr()
 		strcpy(fun, "|");
 		while (!peek(MINDENT)) {
 			EList *args = NULL;
-			Expr * body;
-			Expr   e;
-			p = (p->next = safe_malloc(sizeof(EList)));
-			e = *parse_rel();
-			if (e.type == FUN_CALL) {
-				args = e.fun_call.args;
-				strcat(fun, e.fun_call.fun->var);
-			} else if (e.type == VAR)
-				strcat(fun, e.var);
+			Expr * e;
+			p->next = safe_malloc(sizeof(EList));
+			p       = p->next;
+			e       = parse_rel();
+			if (e->type == FUN_CALL) {
+				args = e->fun_call.args;
+				strcat(fun, e->fun_call.fun->var);
+			} else if (e->type == VAR)
+				strcat(fun, e->var);
 			assert(ARR);
-			e     = *parse_rel();
-			body  = safe_malloc(sizeof(Expr));
-			*body = (Expr){
-				.type = LAM,
-			};
+			e       = parse_rel();
 			p->expr = (Expr){
-				.type = FUN_CALL,
+				.type = LAM,
+				.lam  = mkfundecl("", args, e)
 			};
 		}
 		p->next = NULL;
-		p       = body.next;
+		*expr   = (Expr){
+			.type          = FUN_CALL,
+			.fun_call.fun  = arg,
+			.fun_call.args = body.next
+		};
+		print_expr(*expr, 0);
 		break;
 	}
 	case PINDENT: {
