@@ -1,0 +1,8 @@
+type Peano
+  = Z
+  | S(Peano)
+
+main =
+	case Z of
+		Z -> 0
+		S(n) -> 1

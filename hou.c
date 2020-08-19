@@ -286,6 +286,7 @@ lexer()
 					++cpos;
 					nindent += 8;
 				}
+
 				if (nindent == indent)
 					tok = lexer();
 				else if (nindent > indent) {
@@ -295,6 +296,10 @@ lexer()
 					mindent = (indent - nindent - 8) >> 3;
 					tok     = mktoken(MINDENT);
 					--pindent;
+				}
+				if (nindent == 0) {
+					pindent = 0;
+					mindent = 0;
 				}
 				indent       = nindent;
 				unsused_char = used_char();
@@ -476,7 +481,6 @@ parse_expr()
 			.fun_call.fun  = arg,
 			.fun_call.args = body.next
 		};
-		print_expr(*expr, 0);
 		break;
 	}
 	case PINDENT: {
