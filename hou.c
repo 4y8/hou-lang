@@ -791,12 +791,10 @@ make_underscore_app(EList *arg)
 {
 	Expr *e;
 
-	e = safe_malloc(sizeof(Expr));
-	if (arg)
-		*e = (Expr){.type          = FUN_CALL,
-			    .fun_call.fun  = make_underscore(),
-			    .fun_call.args = arg};
-	else *e = *make_underscore();
+	e  = safe_malloc(sizeof(Expr));
+	*e = (Expr){.type          = FUN_CALL,
+		    .fun_call.fun  = make_underscore(),
+		    .fun_call.args = arg};
 	return e;
 }
 
@@ -843,14 +841,19 @@ type_decls_to_decls(TDeclList *l, int length)
 		p->next = safe_malloc(sizeof(DeclList));
 		p       = p->next;
 		EList *cargs = build_arg_copy(l->t.args);
-		p->decl =
-			(Decl){.type          = FUN_DECL,
-			       .fun_decl.args = cargs,
-			       .name          = l->t.name,
-			       .fun_decl.body = safe_malloc(sizeof(EList))};
-		Expr *bp = p->decl.fun_decl.body;
-		*bp =
-			(Expr){.type = LAM, .lam = safe_malloc(sizeof(Decl))};
+		if (l->t.args)
+			p->decl =
+				(Decl){.type          = FUN_DECL,
+				       .fun_decl.args = cargs,
+				       .name          = l->t.name,
+				       .fun_decl.body = safe_malloc(sizeof(Expr))};
+		else p->decl =
+				(Decl){.type     = VAR_DECL,
+				       .name     = l->t.name,
+				       .var_decl = safe_malloc(sizeof(Expr))};
+		Expr *bp = l->t.args ? p->decl.fun_decl.body : p->decl.var_decl;
+		*bp = (Expr){.type = LAM,
+			     .lam  = safe_malloc(sizeof(Decl))};
 		EList *args = append(append(make_dummy_vars(i - 1),
 		                            make_underscore_l()),
 		                     make_dummy_vars(length - i));
